@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+/*
+ * Dynasty Edge design tokens. Dark is the default (and currently only) theme.
+ * Chart series colors were validated for CVD separation and 3:1 contrast on --color-surface.
+ */
+@theme {
+  --color-bg: #0a1020;
+  --color-surface: #121a2b;
+  --color-surface-2: #172238;
+  --color-surface-3: #1e2b45;
+  --color-line: #233150;
+  --color-line-strong: #2f4166;
+  --color-ink: #e8edf6;
+  --color-ink-2: #aab6cb;
+  --color-ink-3: #7486a3;
+
+  --color-accent: #2dd4bf;
+  --color-accent-ink: #062b27;
+  --color-brand-blue: #3987e5;
+  --color-brand-purple: #8b7cf6;
+  --color-brand-amber: #f5b041;
+
+  /* Chart series (validated): blue, orange, aqua */
+  --color-series-1: #3987e5;
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+
+  /* Strategy identity (always paired with a text label) */
+  --color-contender: #199e70;
+  --color-retool: #3987e5;
+  --color-rebuild: #d95926;
+
+  /* Status (reserved; always with icon + label) */
+  --color-good: #0ca30c;
+  --color-warning: #fab219;
+  --color-serious: #ec835a;
+  --color-critical: #d03b3b;
+
+  /* Position badges */
+  --color-pos-qb: #f472b6;
+  --color-pos-rb: #34d399;
+  --color-pos-wr: #60a5fa;
+  --color-pos-te: #fb923c;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Grids without an explicit column count get an `auto` track that grows to fit wide tables,
+ * pushing cards past the viewport on phones. Default to one shrinkable column; any
+ * grid-cols-* utility (utilities layer) still overrides this.
+ */
+@layer base {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .grid > * {
+    min-width: 0;
+  }
+}
+
+/* Tabular numbers in data tables keep columns aligned. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-accent) 35%, transparent);
+}
+
+/* Thin, unobtrusive scrollbars for dense tables. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
