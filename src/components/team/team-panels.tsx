@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Avatar } from "@/components/avatar";
 import { Card, CardHeader, ConfidenceBadge, GradeBar, InfoTip, StatTile, StrategyBadge } from "@/components/ui";
 import type { LeagueModel, TeamAnalysis } from "@/lib/analysis/types";
-import { SKILL_POSITIONS } from "@/lib/league/models";
 import { fmtAge, fmtInt, fmtPts, ordinal, record } from "@/lib/format";
 import { Tabs } from "@/components/tabs";
 import { StrategyOverride } from "./strategy-override";
@@ -18,7 +17,7 @@ export function TeamHeader({ t, n }: { t: TeamAnalysis; n: number }) {
           {t.strategy.override && <span className="text-[11px] text-ink-3">manual · model says {t.strategy.inferred}</span>}
         </div>
         <p className="mt-1 text-sm text-ink-3">
-          {t.team.manager?.displayName ?? "No manager"} · {record(t.team.wins, t.team.losses, t.team.ties)} · {ordinal(t.standingRank)} of {n}
+          {t.team.manager?.displayName ?? "No manager"} · {record(t.team.wins, t.team.losses, t.team.ties)} · {ordinal(t.standingRank)} of {n} · power #{t.powerRank}
           {t.team.divisionName && ` · ${t.team.divisionName}`}
           {t.team.streak && ` · ${t.team.streak} streak`}
         </p>
@@ -29,13 +28,19 @@ export function TeamHeader({ t, n }: { t: TeamAnalysis; n: number }) {
 
 export function TeamStatTiles({ t, model }: { t: TeamAnalysis; model: LeagueModel }) {
   const n = model.teams.length;
+  const odds = model.odds?.teams.find((o) => o.rosterId === t.team.rosterId);
+  const pct = (x: number) => (x > 0 && x < 0.005 ? "<1%" : `${Math.round(x * 100)}%`);
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
       <StatTile label="Record" value={record(t.team.wins, t.team.losses, t.team.ties)} sub={`${ordinal(t.standingRank)} in standings`} />
       <StatTile label="Points for" value={fmtPts(t.team.pointsFor)} sub={`Against ${fmtPts(t.team.pointsAgainst)}`} />
       <StatTile label="Potential points" value={fmtPts(t.team.potentialPoints)} sub={t.team.potentialPoints ? `${Math.round((t.team.pointsFor / t.team.potentialPoints) * 100)}% lineup efficiency` : "Not provided"} />
       <StatTile label="Best lineup" value={`${fmtPts(t.lineup.total)}`} sub={`adj. PPG · ${ordinal(t.lineup.rank)} of ${n}`} tone="accent" />
-      <StatTile label="Power rank" value={`#${t.powerRank}`} sub="Lineup + results blend" />
+      {odds ? (
+        <StatTile label="Playoff odds" value={pct(odds.playoffPct)} sub={`Title ${(odds.titlePct * 100).toFixed(1)}% · bye ${pct(odds.byePct)}`} tone="accent" />
+      ) : (
+        <StatTile label="Power rank" value={`#${t.powerRank}`} sub="Lineup + results blend" />
+      )}
       <StatTile label="Asset value" value={fmtInt(t.totals.totalValue)} sub={`${ordinal(t.totals.valueRank)} · ${model.valuation.label}`} />
     </div>
   );
@@ -51,7 +56,7 @@ export function PositionGradesCard({ t, model }: { t: TeamAnalysis; model: Leagu
         info="Each position grade blends production rank (60%: adjusted PPG of your top players at the position, sized to how many this league typically starts) with dynasty value rank (40%)."
       />
       <div className="space-y-3 px-4 pb-4">
-        {SKILL_POSITIONS.map((pos) => {
+        {model.gradedPositions.map((pos) => {
           const g = t.positions[pos];
           return (
             <GradeBar
@@ -66,8 +71,8 @@ export function PositionGradesCard({ t, model }: { t: TeamAnalysis; model: Leagu
         <GradeBar label="Depth" score={t.depth.score} grade={t.depth.grade} detail={`Backups' adj. PPG rank ${ordinal(t.depth.rank)}`} />
         <GradeBar label="Picks" score={t.capital.score} grade={t.capital.grade} detail={`Draft capital rank ${ordinal(t.capital.rank)}`} />
       </div>
-      <div className="grid grid-cols-4 border-t border-line text-center text-[11px]">
-        {SKILL_POSITIONS.map((pos) => (
+      <div className="grid border-t border-line text-center text-[11px]" style={{ gridTemplateColumns: `repeat(${model.gradedPositions.length}, minmax(0, 1fr))` }}>
+        {model.gradedPositions.map((pos) => (
           <div key={pos} className="border-r border-line px-1 py-2 last:border-r-0">
             <div className="text-ink-3">{pos} prod.</div>
             <div className="tnum font-medium text-ink">{ordinal(t.positions[pos].starterRank)}</div>
@@ -83,7 +88,7 @@ export function StrategyCard({ t, editable }: { t: TeamAnalysis; editable?: bool
     <Card>
       <CardHeader
         title="Team outlook"
-        info="Current strength blends best-lineup PPG (45%), points for (20%), potential points (15%) and win % (20%), each as a league percentile. ≥62 = contender, ≤38 = rebuilder. These are estimates from observable data, not knowledge of a manager's intent."
+        info="Current strength blends best-lineup PPG (35%), points for (30%), win % (25%) and potential points (10%), each as a league percentile; weights calibrated on this league's past seasons (Analytics → Model check). ≥62 = contender, ≤38 = rebuilder. Estimates from observable data, not a manager's intent."
         action={<StrategyBadge strategy={t.strategy.effective} size="md" />}
       />
       <div className="space-y-3 px-4 pb-4">

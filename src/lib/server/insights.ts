@@ -2,6 +2,7 @@ import { recommendationsFor, type Recommendation } from "@/lib/analysis/recommen
 import type { LeagueModel, Strategy } from "@/lib/analysis/types";
 import type { TradeEvaluation } from "@/lib/trades/evaluate";
 import { generateTrades } from "@/lib/trades/generate";
+import { annotateTradeOdds } from "./odds";
 import type { Prefs } from "@/lib/prefs/store";
 
 const tradeMemo = new WeakMap<LeagueModel, Map<string, TradeEvaluation[]>>();
@@ -14,13 +15,11 @@ export function defaultTrades(model: LeagueModel, prefs: Prefs, objective: Strat
   const key = JSON.stringify([objective, limit, prefs.untouchables, prefs.tradeBlock, prefs.targets]);
   let out = byKey.get(key);
   if (!out) {
-    out = generateTrades(model, model.myRosterId, {
+    out = annotateTradeOdds(
+      model,
+      generateTrades(model, model.myRosterId, { objective, limit, untouchables: prefs.untouchables, tradeBlock: prefs.tradeBlock, targets: prefs.targets }),
       objective,
-      limit,
-      untouchables: prefs.untouchables,
-      tradeBlock: prefs.tradeBlock,
-      targets: prefs.targets,
-    });
+    );
     byKey.set(key, out);
   }
   return out;

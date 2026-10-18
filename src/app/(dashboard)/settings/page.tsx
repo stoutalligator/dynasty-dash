@@ -7,6 +7,10 @@ import { StrategyOverride } from "@/components/team/strategy-override";
 import { Card, CardHeader, Notice, PageTitle, SourceTag, StrategyBadge } from "@/components/ui";
 import { fmtDateTime, fmtRelative } from "@/lib/format";
 import { getLeague } from "@/lib/server/data";
+import { getConfig } from "@/lib/config";
+import { authEnabled } from "@/lib/auth";
+import { logout } from "@/app/login/actions";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -25,6 +29,7 @@ const SOURCE_LABEL: Record<string, string> = {
 
 async function SettingsContent() {
   const { model } = await getLeague();
+  const cfg = getConfig();
   const v = model.verification;
   const val = model.valuation;
   return (
@@ -83,6 +88,33 @@ async function SettingsContent() {
             <p className="text-xs text-ink-3">
               Sleeper is the source of truth for rosters, ownership, settings and transactions. Values and projections come from the provider above and are labeled wherever they appear. Set <code>VALUATION_PROVIDER=none</code> to use only the internal production + age estimate.
             </p>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader title="Deployment & storage" subtitle="How this instance stores data and who can reach it" />
+          <dl className="divide-y divide-line/60 px-4 pb-3 text-sm">
+            {[
+              ["Storage", { file: "Local files (.cache / data)", postgres: "Postgres (Neon)", upstash: "Upstash Redis" }[cfg.storage.cache.kind]],
+              ["Sign-in", authEnabled() ? "Password required (APP_PASSWORD)" : "Open: set APP_PASSWORD before deploying"],
+              ["Scheduled jobs", cfg.cronSecret ? "Enabled (CRON_SECRET set)" : "CRON_SECRET not set: cron endpoints refuse requests"],
+              ["Digest delivery", [cfg.digestWebhookUrl ? "webhook" : null, cfg.ntfyTopic ? "ntfy" : null].filter(Boolean).join(" + ") || "In-app only"],
+              ["Season simulation", model.odds ? `${model.odds.runs.toLocaleString()} runs (SIM_RUNS)` : "Unavailable"],
+            ].map(([k, v]) => (
+              <div key={k} className="grid grid-cols-[9rem_1fr] gap-3 py-2">
+                <dt className="text-ink-3">{k}</dt>
+                <dd className="text-ink">{v}</dd>
+              </div>
+            ))}
+          </dl>
+          {cfg.storage.warning && <div className="px-4 pb-3"><Notice level="warning">{cfg.storage.warning}</Notice></div>}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
+            <div className="flex items-center gap-2 text-xs text-ink-3">Appearance <ThemeToggle /></div>
+            {authEnabled() && (
+              <form action={logout}>
+                <button type="submit" className="rounded-lg border border-line-strong bg-surface-2 px-3 py-1.5 text-xs text-ink-2 hover:text-ink">Sign out</button>
+              </form>
+            )}
           </div>
         </Card>
 

@@ -4,13 +4,13 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ActivityFeed } from "@/components/activity-feed";
 import { Avatar } from "@/components/avatar";
+import { OddsTable } from "@/components/league/odds-table";
 import { StandingsTable, StrategyDistribution } from "@/components/league/standings-table";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { Tabs } from "@/components/tabs";
 import { Card, CardHeader, ConfidenceBadge, InfoTip, PageTitle, StatTile, StrategyBadge } from "@/components/ui";
 import { leagueOpportunities } from "@/lib/analysis/recommendations";
 import type { LeagueModel } from "@/lib/analysis/types";
-import { SKILL_POSITIONS } from "@/lib/league/models";
 import { fmtAge, fmtInt, fmtPts, ordinal } from "@/lib/format";
 import { getLeague } from "@/lib/server/data";
 
@@ -27,7 +27,7 @@ function PowerRankings({ model }: { model: LeagueModel }) {
       <CardHeader
         title="Power rankings"
         subtitle="Current strength, not record alone"
-        info="Power rank sorts by the current-strength score: best-lineup adj. PPG (45%), points for (20%), potential points (15%), win % (20%), each as a league percentile."
+        info="Power rank sorts by the current-strength score: best-lineup adj. PPG (35%), points for (30%), win % (25%), potential points (10%), each as a league percentile."
       />
       <div className="overflow-x-auto">
         <table className="tnum w-full text-sm md:min-w-[820px]">
@@ -38,7 +38,7 @@ function PowerRankings({ model }: { model: LeagueModel }) {
               <th className="w-20 py-2 text-right font-medium">Now</th>
               <th className="hidden w-20 py-2 text-right font-medium sm:table-cell">Future</th>
               <th className="hidden w-24 py-2 text-right font-medium md:table-cell">Lineup</th>
-              {SKILL_POSITIONS.map((p) => <th key={p} className="hidden w-12 py-2 text-center font-medium md:table-cell">{p}</th>)}
+              {model.gradedPositions.map((p) => <th key={p} className="hidden w-12 py-2 text-center font-medium md:table-cell">{p}</th>)}
               <th className="hidden w-20 py-2 text-right font-medium md:table-cell">Age</th>
               <th className="hidden w-24 py-2 text-right font-medium sm:table-cell">Value</th>
               <th className="w-28 py-2 pr-4 pl-3 font-medium">Outlook</th>
@@ -57,7 +57,7 @@ function PowerRankings({ model }: { model: LeagueModel }) {
                 <td className="py-2 text-right text-ink">{Math.round(t.strategy.nowScore * 100)}</td>
                 <td className="hidden py-2 text-right text-ink-2 sm:table-cell">{Math.round(t.strategy.futureScore * 100)}</td>
                 <td className="hidden py-2 text-right text-ink-2 md:table-cell">{fmtPts(t.lineup.total)}</td>
-                {SKILL_POSITIONS.map((p) => (
+                {model.gradedPositions.map((p) => (
                   <td key={p} className={clsx("hidden py-2 text-center text-xs font-semibold md:table-cell", gradeColor(t.positions[p].overall.grade))}>{t.positions[p].overall.grade}</td>
                 ))}
                 <td className="hidden py-2 text-right text-ink-2 md:table-cell">{fmtAge(t.age.valueWeighted)}</td>
@@ -89,8 +89,8 @@ function TeamProfiles({ model }: { model: LeagueModel }) {
             </div>
             <StrategyBadge strategy={t.strategy.effective} />
           </div>
-          <div className="mt-3 grid grid-cols-6 gap-1 text-center">
-            {SKILL_POSITIONS.map((p) => (
+          <div className="mt-3 grid gap-1 text-center" style={{ gridTemplateColumns: `repeat(${model.gradedPositions.length + 2}, minmax(0, 1fr))` }}>
+            {model.gradedPositions.map((p) => (
               <div key={p} className="rounded-md bg-surface-2/70 py-1">
                 <div className="text-[10px] text-ink-3">{p}</div>
                 <div className={clsx("text-sm font-semibold", gradeColor(t.positions[p].overall.grade))}>{t.positions[p].overall.grade}</div>
@@ -216,6 +216,7 @@ async function League() {
       <Tabs
         tabs={[
           { key: "standings", label: "Standings" },
+          { key: "odds", label: "Playoff odds" },
           { key: "power", label: "Power rankings" },
           { key: "teams", label: "Team profiles" },
           { key: "opportunities", label: "Opportunities" },
@@ -233,6 +234,7 @@ async function League() {
             <StrategyDistribution model={model} />
           </Card>
         </div>
+        <OddsTable model={model} />
         <PowerRankings model={model} />
         <TeamProfiles model={model} />
         <Opportunities model={model} />

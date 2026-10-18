@@ -1,5 +1,4 @@
 import { getCache } from "@/lib/cache/file-cache";
-import { getConfig } from "@/lib/config";
 import type { Issue, SourceFreshness } from "@/lib/league/models";
 import { logger } from "@/lib/log";
 import { createSleeperClient, type SleeperClient } from "@/lib/sleeper/client";
@@ -46,12 +45,13 @@ export async function loadStatsBundle(opts: {
   season: string;
   completedWeeks: number[];
   projectionWeeks: number[];
+  /** Projections for weeks before this are historical (fixed) and cached long-term. */
+  upcomingFrom?: number;
   scoring: Record<string, number>;
   force?: boolean;
   client?: SleeperClient;
 }): Promise<StatsBundle> {
-  const config = getConfig();
-  const cache = getCache(config.cacheDir);
+  const cache = getCache();
   const client = opts.client ?? createSleeperClient();
   const issues: Issue[] = [];
   const freshness: Record<string, SourceFreshness> = {};
@@ -68,7 +68,8 @@ export async function loadStatsBundle(opts: {
   const projResults = await Promise.allSettled(
     opts.projectionWeeks.map(async (w) => {
       const key = `projections-${opts.season}-regular-w${w}`;
-      const c = await cache.getOrFetch(key, () => client.weeklyProjections(opts.season, w), { ttlMs: 6 * 60 * MIN, force: opts.force });
+      const past = opts.upcomingFrom != null && w < opts.upcomingFrom;
+      const c = await cache.getOrFetch(key, () => client.weeklyProjections(opts.season, w), { ttlMs: past ? 7 * 24 * 60 * MIN : 6 * 60 * MIN, force: opts.force && !past });
       return { w, key, c };
     }),
   );
@@ -97,12 +98,11 @@ export async function loadStatsBundle(opts: {
 
 /** Sleeper's cross-league trending adds/drops (documented). */
 export async function loadTrending(opts: { force?: boolean; client?: SleeperClient } = {}) {
-  const config = getConfig();
   const client = opts.client ?? createSleeperClient();
   try {
     const [adds, drops] = await Promise.all([
-      getCache(config.cacheDir).getOrFetch("trending-add-48h", () => client.trending("add", 48, 200), { ttlMs: 30 * MIN, force: opts.force }),
-      getCache(config.cacheDir).getOrFetch("trending-drop-48h", () => client.trending("drop", 48, 200), { ttlMs: 30 * MIN, force: opts.force }),
+      getCache().getOrFetch("trending-add-48h", () => client.trending("add", 48, 200), { ttlMs: 30 * MIN, force: opts.force }),
+      getCache().getOrFetch("trending-drop-48h", () => client.trending("drop", 48, 200), { ttlMs: 30 * MIN, force: opts.force }),
     ]);
     return {
       adds: new Map(adds.data.map((t) => [t.player_id, t.count])),

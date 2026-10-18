@@ -27,6 +27,14 @@ async function main() {
     const t = h.trades.find((x) => x.sides.some((sd) => sd.received.some((a) => a.label.includes("→"))));
     if (t) console.log(`  example: ${t.season} ${t.sides.map((sd) => `${sd.name} got [${sd.received.map((a) => a.label).join(", ")}]=${sd.valueNow}`).join(" | ")}`);
   }
+  if (model.odds) {
+    const o = model.odds;
+    console.log(`odds: ${o.runs} runs, sd ${o.sd}, calibration ${o.calibration}, weeks ${o.regularWeeks.join(",")} + playoffs ${o.playoffWeeks.join(",")}`);
+    for (const t of [...o.teams].sort((a, b) => b.titlePct - a.titlePct)) {
+      const name = model.teams.find((x) => x.team.rosterId === t.rosterId)!.team.teamName;
+      console.log(`  ${name.padEnd(26)} proj ${t.projectedPpg.toFixed(1).padStart(6)}  wins ${t.avgWins.toFixed(1).padStart(5)}  playoffs ${(t.playoffPct * 100).toFixed(1).padStart(5)}%  bye ${(t.byePct * 100).toFixed(1).padStart(5)}%  title ${(t.titlePct * 100).toFixed(1).padStart(5)}%`);
+    }
+  } else console.log("odds: unavailable");
   console.log(`issues: ${model.issues.map((i) => i.code).join(", ") || "none"}`);
 }
 main().catch((e) => { console.error(e); process.exit(1); });

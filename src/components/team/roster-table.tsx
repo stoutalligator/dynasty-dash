@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PlayerAvatar } from "@/components/avatar";
+import { PlayerDrawer } from "@/components/player-drawer";
 import { InjuryBadge, InfoTip, PosBadge } from "@/components/ui";
 import type { PlayerView } from "@/lib/analysis/types";
 import type { RosterSlot } from "@/lib/league/models";
@@ -59,6 +60,12 @@ export function RosterTable({
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: initialSort, dir: initialSort === "slot" ? 1 : -1 });
   const [pos, setPos] = useState<string>("ALL");
   const [slot, setSlot] = useState<string>("ALL");
+  const [selected, setSelected] = useState<PlayerView | null>(null);
+  const nameButton = (p: PlayerView, cls: string) => (
+    <button type="button" onClick={() => setSelected(p)} className={clsx("truncate text-left hover:underline", cls, p.mapped ? "text-ink" : "text-warning")}>
+      {p.name}
+    </button>
+  );
 
   const rows = useMemo(() => {
     const slotIndex = (p: PlayerView) => (p.starterSlot && startingSlots ? startingSlots.indexOf(p.starterSlot) : 99);
@@ -142,7 +149,7 @@ export function RosterTable({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <PosBadge pos={p.position} />
-                  <span className={clsx("truncate text-sm font-medium", p.mapped ? "text-ink" : "text-warning")}>{p.name}</span>
+                  {nameButton(p, "text-sm font-medium")}
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-ink-3">
                   <span>
@@ -203,7 +210,7 @@ export function RosterTable({
                       <PlayerAvatar id={p.id} name={p.name} />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className={clsx("truncate font-medium", p.mapped ? "text-ink" : "text-warning")}>{p.name}</span>
+                          {nameButton(p, "font-medium")}
                           <TagList tags={p.tags.filter((t) => t !== "Starter")} />
                         </div>
                         <div className="text-[11px] text-ink-3">
@@ -236,6 +243,7 @@ export function RosterTable({
           </tbody>
         </table>
       </div>
+      <PlayerDrawer player={selected} teamName={selected?.rosterId != null ? teamNames?.[selected.rosterId] : null} onClose={() => setSelected(null)} />
     </div>
   );
 }

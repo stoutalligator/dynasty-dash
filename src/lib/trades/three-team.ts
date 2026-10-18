@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { LeagueModel, TeamAnalysis } from "@/lib/analysis/types";
 import { strategySchema } from "@/lib/prefs/store";
 import { teamAssets, type TradeAsset } from "./assets";
+import type { OddsDelta } from "@/lib/sim/context";
 import { evaluateSide, type SideImpact } from "./evaluate";
 
 /**
@@ -18,6 +19,8 @@ export type ThreeTeamEvaluation = {
   overall: number;
   fit: "High" | "Medium" | "Low";
   notes: string[];
+  /** Season-simulation odds by roster id (attached on the server when available). */
+  odds?: Record<number, OddsDelta>;
 };
 
 export const threeTeamOptionsSchema = z.object({

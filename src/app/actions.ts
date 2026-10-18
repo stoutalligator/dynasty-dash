@@ -9,6 +9,8 @@ import { assetIndex } from "@/lib/trades/assets";
 import { evaluateTrade, type TradeEvaluation } from "@/lib/trades/evaluate";
 import { generateOptionsSchema, generateTrades } from "@/lib/trades/generate";
 import { generateThreeTeamTrades, threeTeamOptionsSchema, type ThreeTeamEvaluation } from "@/lib/trades/three-team";
+import { annotateThreeTeamOdds, annotateTradeOdds } from "@/lib/server/odds";
+import { runDigest } from "@/lib/digest/run";
 
 const log = logger("actions");
 
@@ -68,7 +70,7 @@ export async function findTrades(options: unknown): Promise<Result<TradeEvaluati
     const { model, prefs } = await loadLeagueModel();
     if (model.myRosterId == null) throw new Error("Your team could not be verified; check MY_ROSTER_ID.");
     const o = generateOptionsSchema.parse({ ...(options as object), untouchables: prefs.untouchables, tradeBlock: prefs.tradeBlock, targets: prefs.targets });
-    return { ok: true, data: generateTrades(model, model.myRosterId, o) };
+    return { ok: true, data: annotateTradeOdds(model, generateTrades(model, model.myRosterId, o), o.objective) };
   } catch (err) {
     return fail(err);
   }
@@ -93,16 +95,14 @@ export async function evaluateCustomTrade(input: unknown): Promise<Result<TradeE
         if (!a || a.rosterId !== owner) throw new Error(`Asset ${id} is not owned by roster ${owner}`);
         return a;
       });
-    return {
-      ok: true,
-      data: evaluateTrade(model, {
-        myRosterId: model.myRosterId,
-        partnerRosterId: i.partnerRosterId,
-        myGives: resolve(i.myAssets, model.myRosterId),
-        theirGives: resolve(i.theirAssets, i.partnerRosterId),
-        objective: i.objective,
-      }),
-    };
+    const ev = evaluateTrade(model, {
+      myRosterId: model.myRosterId,
+      partnerRosterId: i.partnerRosterId,
+      myGives: resolve(i.myAssets, model.myRosterId),
+      theirGives: resolve(i.theirAssets, i.partnerRosterId),
+      objective: i.objective,
+    });
+    return { ok: true, data: annotateTradeOdds(model, [ev], i.objective)[0] };
   } catch (err) {
     return fail(err);
   }
@@ -135,7 +135,18 @@ export async function findThreeTeamTrades(options: unknown): Promise<Result<Thre
     const { model, prefs } = await loadLeagueModel();
     if (model.myRosterId == null) throw new Error("Your team could not be verified; check MY_ROSTER_ID.");
     const o = threeTeamOptionsSchema.parse({ ...(options as object), untouchables: prefs.untouchables });
-    return { ok: true, data: generateThreeTeamTrades(model, model.myRosterId, o) };
+    return { ok: true, data: annotateThreeTeamOdds(model, generateThreeTeamTrades(model, model.myRosterId, o)) };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Build (and optionally send) the weekly digest on demand. */
+export async function generateDigest(deliver: boolean): Promise<Result<{ delivered: { channel: string; ok: boolean; error?: string }[] }>> {
+  try {
+    const { delivery } = await runDigest({ deliver });
+    refresh();
+    return { ok: true, data: { delivered: delivery } };
   } catch (err) {
     return fail(err);
   }

@@ -12,6 +12,8 @@ import type {
 } from "@/lib/league/models";
 import type { Strategy } from "@/lib/prefs/store";
 import type { HistoryAnalysis } from "@/lib/history/analyze";
+import type { SimSummary } from "@/lib/sim/context";
+import type { BacktestReport } from "./backtest";
 import type { ProviderStatus } from "@/lib/providers";
 
 export type { Strategy };
@@ -35,7 +37,7 @@ export type ProductionSummary = {
   weeksStarted: number;
   weeksBenched: number;
   benchPoints: number;
-  weekly: { week: number; points: number; started: boolean | null; snapShare: number | null; played: boolean }[];
+  weekly: { week: number; points: number; started: boolean | null; snapShare: number | null; opportunities: number | null; played: boolean }[];
   source: "stats" | "matchups";
 };
 
@@ -67,8 +69,10 @@ export type PlayerView = {
   tags: string[];
   /** Sleeper projection (league scoring) for the current week. */
   projWeek: number | null;
-  /** Sum of projections over the loaded upcoming weeks. */
+  /** Sum of projections over the next three weeks. */
   projNext: number | null;
+  /** Rest-of-season projection (current week through the championship week). */
+  projRos: number | null;
   /** Sleeper-wide adds in the last 48 hours. */
   trendingAdds: number | null;
 };
@@ -172,7 +176,13 @@ export type LeagueModel = {
   scoredWeeks: number;
   /** Where production numbers come from. */
   statsSource: "stats" | "matchups";
+  /** Positions graded in this league (from its starting slots). */
+  gradedPositions: string[];
   projectionWeeks: number[];
   trendingFetchedAt: string | null;
   history: HistoryAnalysis | null;
+  /** Season simulation (playoff and title odds); null when it cannot run (e.g. offseason). */
+  odds: SimSummary | null;
+  /** Backtest of the current-strength signals on completed seasons. */
+  modelCheck: BacktestReport | null;
 };

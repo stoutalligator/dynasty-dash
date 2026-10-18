@@ -1,9 +1,10 @@
 "use client";
 
 import clsx from "clsx";
-import { ArrowLeftRight, BarChart3, History, LayoutDashboard, ListOrdered, Menu, Settings, Shield, Sparkles, Trophy, Users, X } from "lucide-react";
+import { ArrowLeftRight, BarChart3, History, LayoutDashboard, ListOrdered, Mail, Menu, Settings, Shield, Sparkles, Trophy, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Suspense, useState, type ReactNode } from "react";
 
 export const NAV = [
@@ -16,6 +17,7 @@ export const NAV = [
   { href: "/picks", label: "Draft Picks", icon: ListOrdered },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/history", label: "History", icon: History },
+  { href: "/digest", label: "Digest", icon: Mail },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
@@ -87,7 +89,10 @@ export function Sidebar({ league }: { league: ReactNode }) {
         <Brand />
         {league}
         <Nav />
-        <p className="mt-auto px-2 text-[11px] leading-relaxed text-ink-3">Read-only Sleeper data. Not affiliated with Sleeper.</p>
+        <div className="mt-auto space-y-3 px-1">
+          <ThemeToggle />
+          <p className="px-1 text-[11px] leading-relaxed text-ink-3">Read-only Sleeper data. Not affiliated with Sleeper.</p>
+        </div>
       </aside>
 
       <div className="sticky top-0 z-40 flex items-center justify-between border-b border-line bg-bg/90 px-4 py-2.5 backdrop-blur lg:hidden">
@@ -108,6 +113,7 @@ export function Sidebar({ league }: { league: ReactNode }) {
             </div>
             {league}
             <Nav onNavigate={() => setOpen(false)} />
+            <ThemeToggle className="mt-auto self-start" />
           </div>
         </div>
       )}

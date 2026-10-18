@@ -40,6 +40,7 @@ describe("analyzeHistory", () => {
       tx({ type: "waiver", rosterIds: [1], adds: [{ playerId: "p-wire", rosterId: 1 }], waiverBid: 12 }),
     ],
     drafts: [],
+    weeks: [],
   };
   // The 2026 rookie draft: u1's slot 3 pick in round 1 was "rookie".
   const current: HistoricalSeason = {

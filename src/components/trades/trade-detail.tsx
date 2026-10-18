@@ -2,12 +2,13 @@ import clsx from "clsx";
 import { CircleAlert, CircleCheck, CircleMinus } from "lucide-react";
 import type { SideImpact, TradeEvaluation } from "@/lib/trades/evaluate";
 import { fmtAge, fmtInt, fmtPts, fmtSigned, fmtSignedInt } from "@/lib/format";
-import { AssetLine, FitBadge } from "./proposal-summary";
+import type { OddsDelta } from "@/lib/sim/context";
+import { AssetLine, FitBadge, OddsLine } from "./proposal-summary";
 
 const tone = (n: number, eps = 0.05) => (n > eps ? "text-good" : n < -eps ? "text-critical" : "text-ink-3");
 const STRAT = { contender: "Contender", retool: "Retool", rebuild: "Rebuilder" };
 
-function Side({ s, title }: { s: SideImpact; title: string }) {
+function Side({ s, title, odds }: { s: SideImpact; title: string; odds?: OddsDelta }) {
   return (
     <div className="min-w-0 rounded-lg border border-line bg-surface-2/40 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -48,6 +49,7 @@ function Side({ s, title }: { s: SideImpact; title: string }) {
           </>
         )}
       </dl>
+      {odds && <OddsLine label="Season odds" d={odds} />}
       {(s.reasonsFor.length > 0 || s.reasonsAgainst.length > 0) && (
         <ul className="mt-3 space-y-1 text-[12px]">
           {s.reasonsFor.map((r) => (
@@ -73,8 +75,8 @@ export function TradeDetail({ e }: { e: TradeEvaluation }) {
         {e.helpsMe.length > 0 && <span>· Supports your {e.helpsMe.map((h) => STRAT[h].toLowerCase()).join(" / ")} path</span>}
       </div>
       <div className="grid gap-3 md:grid-cols-2">
-        <Side s={e.mine} title={`${e.mine.teamName} (you)`} />
-        <Side s={e.partner} title={e.partner.teamName} />
+        <Side s={e.mine} title={`${e.mine.teamName} (you)`} odds={e.odds?.mine} />
+        <Side s={e.partner} title={e.partner.teamName} odds={e.odds?.partner} />
       </div>
       {e.risks.length > 0 && (
         <div className="rounded-lg border border-warning/25 bg-warning/5 px-3 py-2">

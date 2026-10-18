@@ -3,7 +3,10 @@
 export type RosterSlot = "starter" | "bench" | "taxi" | "reserve";
 
 export const SKILL_POSITIONS = ["QB", "RB", "WR", "TE"] as const;
-export type SkillPosition = (typeof SKILL_POSITIONS)[number];
+/** Every position the app can grade; each league grades the subset its starting lineup uses. */
+export const GRADABLE_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"] as const;
+/** A graded fantasy position (QB/RB/WR/TE, plus K/DEF in leagues that start them). */
+export type SkillPosition = string;
 
 export type InjuryInfo = {
   status: string;
@@ -103,6 +106,10 @@ export type LeagueInfo = {
   /** Current league week (Sleeper "leg"). */
   currentWeek: number | null;
   lastScoredWeek: number | null;
+  /** Sleeper league_average_match: each week also counts as a game vs. the league median. */
+  medianGame: boolean;
+  /** Sleeper playoff_round_type: 0 = one week per round, 1 = two-week rounds, 2 = two-week final. */
+  playoffRoundType: number | null;
   divisions: { id: number; name: string; avatarUrl: string | null }[];
   format: LeagueFormat;
   scoringSettings: Record<string, number>;
@@ -151,6 +158,8 @@ export type MatchupEntry = {
 /** `complete` is false for the in-progress week (partial live scores). */
 export type WeekResult = { week: number; complete: boolean; entries: MatchupEntry[] };
 
+export type ScheduledWeek = { week: number; pairs: [number, number][] };
+
 export type IssueLevel = "error" | "warning" | "info";
 export type Issue = { level: IssueLevel; code: string; message: string; context?: Record<string, unknown> };
 
@@ -180,6 +189,8 @@ export type LeagueSnapshot = {
   pickSeasons: string[];
   transactions: Transaction[];
   weeks: WeekResult[];
+  /** Head-to-head pairings for the remaining regular-season weeks (from Sleeper's pre-generated matchups). */
+  schedule: ScheduledWeek[];
   players: PlayerDb;
   freshness: Record<string, SourceFreshness>;
   issues: Issue[];

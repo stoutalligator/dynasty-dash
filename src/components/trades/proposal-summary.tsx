@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { PosBadge } from "@/components/ui";
 import type { TradeAsset } from "@/lib/trades/assets";
+import type { OddsDelta } from "@/lib/sim/context";
 import type { TradeEvaluation } from "@/lib/trades/evaluate";
 import { fmtInt, fmtSigned, fmtSignedInt } from "@/lib/format";
 
@@ -25,6 +26,26 @@ const delta = (n: number, d = 1) => (
 const deltaInt = (n: number) => (
   <span className={clsx("tnum font-medium", n > 0 ? "text-good" : n < 0 ? "text-critical" : "text-ink-3")}>{fmtSignedInt(n)}</span>
 );
+
+const pp = (x: number) => `${(x * 100).toFixed(x < 0.1 ? 1 : 0)}%`;
+
+/** Playoff and title odds before → after, from the season simulation. */
+export function OddsLine({ label, d }: { label: string; d: OddsDelta }) {
+  const t = d.titleAfter - d.titleBefore;
+  const p = d.playoffAfter - d.playoffBefore;
+  const cls = (x: number) => (x > 0.003 ? "text-good" : x < -0.003 ? "text-critical" : "text-ink-3");
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-ink-3" title="Season simulation with the rosters swapped (same random draws as the baseline).">
+      <span>{label}:</span>
+      <span>
+        Title {pp(d.titleBefore)} → <span className={clsx("tnum font-medium", cls(t))}>{pp(d.titleAfter)}</span>
+      </span>
+      <span>
+        Playoffs {pp(d.playoffBefore)} → <span className={clsx("tnum font-medium", cls(p))}>{pp(d.playoffAfter)}</span>
+      </span>
+    </div>
+  );
+}
 
 /** Compact, hook-free proposal summary (usable from server and client components). */
 export function ProposalSummary({ e, compact }: { e: TradeEvaluation; compact?: boolean }) {
@@ -55,6 +76,7 @@ export function ProposalSummary({ e, compact }: { e: TradeEvaluation; compact?: 
         <span>Their lineup {delta(e.partner.lineupDelta)}</span>
         {!compact && <span>Their value {deltaInt(e.partner.netValue)}</span>}
       </div>
+      {e.odds && <OddsLine label="Your odds" d={e.odds.mine} />}
       {!compact && e.mine.reasonsFor.length > 0 && <p className="mt-1.5 text-[12px] text-ink-2">{e.mine.reasonsFor.join(" ")}</p>}
     </div>
   );

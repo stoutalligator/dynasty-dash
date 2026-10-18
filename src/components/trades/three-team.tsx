@@ -8,7 +8,7 @@ import { Card, CardHeader } from "@/components/ui";
 import type { Strategy } from "@/lib/analysis/types";
 import type { ThreeTeamEvaluation } from "@/lib/trades/three-team";
 import { fmtInt, fmtSigned, fmtSignedInt } from "@/lib/format";
-import { FitBadge } from "./proposal-summary";
+import { FitBadge, OddsLine } from "./proposal-summary";
 
 /** On-demand explorer for three-team trade cycles. */
 export function ThreeTeamExplorer({ objective, teamNames }: { objective: Strategy; teamNames: Record<number, string> }) {
@@ -71,6 +71,7 @@ export function ThreeTeamExplorer({ objective, teamNames }: { objective: Strateg
                     Lineup <span className={s.lineupDelta >= 0 ? "text-good" : "text-critical"}>{fmtSigned(s.lineupDelta)}</span> · Value{" "}
                     <span className={s.netValue >= 0 ? "text-good" : "text-critical"}>{fmtSignedInt(s.netValue)}</span>
                     {s.needsAddressed.length > 0 && <> · fills {s.needsAddressed.join(", ")}</>}
+                    {e.odds?.[s.rosterId] && <OddsLine label="Odds" d={e.odds[s.rosterId]} />}
                   </div>
                 ))}
               </div>

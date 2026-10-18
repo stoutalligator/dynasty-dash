@@ -394,6 +394,8 @@ function CompareTable({ items, onRemove }: { items: TradeEvaluation[]; onRemove:
     ["Your value change", (e) => fmtSignedInt(e.mine.netValue)],
     ["Your lineup change", (e) => `${fmtSigned(e.mine.lineupDelta)} PPG`],
     ["Your future value", (e) => fmtSignedInt(e.mine.futureDelta)],
+    ["Your title odds", (e) => (e.odds ? `${(e.odds.mine.titleBefore * 100).toFixed(1)}% → ${(e.odds.mine.titleAfter * 100).toFixed(1)}%` : "—")],
+    ["Your playoff odds", (e) => (e.odds ? `${Math.round(e.odds.mine.playoffBefore * 100)}% → ${Math.round(e.odds.mine.playoffAfter * 100)}%` : "—")],
     ["Your age (value-wtd)", (e) => `${e.mine.ageBefore ?? "—"} → ${e.mine.ageAfter ?? "—"}`],
     ["Needs addressed", (e) => e.mine.needsAddressed.join(", ") || "—"],
     ["Their value change", (e) => fmtSignedInt(e.partner.netValue)],

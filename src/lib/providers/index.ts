@@ -33,7 +33,7 @@ export async function loadExternalValuations(
   }
   const key = `valuations-${provider.id}-${ctx.superflex ? "sf" : "1qb"}-${ctx.teams}-${ctx.receptionPoints}`;
   try {
-    const cached = await getCache(config.cacheDir).getOrFetch(key, () => provider.fetch(ctx), {
+    const cached = await getCache().getOrFetch(key, () => provider.fetch(ctx), {
       ttlMs: 12 * 3600_000,
       force: opts.force,
     });

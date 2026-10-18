@@ -18,7 +18,12 @@ export type StrategyInputs = {
   valuationIsEstimate: boolean;
 };
 
-export const NOW_WEIGHTS = { lineup: 0.45, pointsFor: 0.2, potential: 0.15, win: 0.2 } as const;
+/**
+ * Calibrated on this league's 2024–25 seasons (Analytics → Model check): points for and record
+ * after week 6 predicted final standings better than lineup potential alone, so they carry more
+ * weight than the original 45/20/15/20 split.
+ */
+export const NOW_WEIGHTS = { lineup: 0.35, pointsFor: 0.3, potential: 0.1, win: 0.25 } as const;
 export const FUTURE_WEIGHTS = { youth: 0.35, youngValue: 0.35, capital: 0.3 } as const;
 export const CONTENDER_AT = 0.62;
 export const REBUILD_AT = 0.38;

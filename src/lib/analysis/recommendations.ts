@@ -1,4 +1,3 @@
-import { SKILL_POSITIONS } from "@/lib/league/models";
 import { ordinal } from "@/lib/league/picks";
 import type { TradeEvaluation } from "@/lib/trades/evaluate";
 import { median } from "./grades";
@@ -86,7 +85,7 @@ export function recommendationsFor(
 export function leagueOpportunities(model: LeagueModel) {
   const n = model.teams.length;
   const qbWeak = model.league.format.superflex ? model.teams.filter((t) => t.positions.QB.starterRank > n - Math.ceil(n / 3)) : [];
-  const surplusByPos = SKILL_POSITIONS.map((pos) => ({
+  const surplusByPos = model.gradedPositions.map((pos) => ({
     position: pos,
     teams: model.teams
       .filter((t) => t.positions[pos].depthRank <= Math.ceil(n / 4))

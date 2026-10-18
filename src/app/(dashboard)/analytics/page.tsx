@@ -5,9 +5,9 @@ import { Suspense } from "react";
 import { AgeValueChart, WeeklyScoreChart, type AgeValuePoint, type WeeklyPoint } from "@/components/charts";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { Card, CardHeader, InfoTip, Notice, PageTitle, PosBadge } from "@/components/ui";
-import { SKILL_POSITIONS } from "@/lib/league/models";
 import { fmtPts, ordinal } from "@/lib/format";
 import { getLeague, myTeam } from "@/lib/server/data";
+import type { BacktestReport, MetricKey } from "@/lib/analysis/backtest";
 import { STRATEGY_TEXT } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Analytics" };
@@ -97,14 +97,14 @@ async function Analytics() {
               <thead>
                 <tr className="text-ink-3">
                   <th className="py-1 text-left font-medium">Team</th>
-                  {SKILL_POSITIONS.map((p) => <th key={p} className="w-14 py-1 text-center"><PosBadge pos={p} /></th>)}
+                  {model.gradedPositions.map((p) => <th key={p} className="w-14 py-1 text-center"><PosBadge pos={p} /></th>)}
                 </tr>
               </thead>
               <tbody>
                 {[...model.teams].sort((a, b) => a.powerRank - b.powerRank).map((t) => (
                   <tr key={t.team.rosterId}>
                     <td className={clsx("truncate py-0.5 pr-2", t.team.isMine ? "font-semibold text-ink" : "text-ink-2")}>{t.team.teamName}</td>
-                    {SKILL_POSITIONS.map((p) => {
+                    {model.gradedPositions.map((p) => {
                       const r = t.positions[p].starterRank;
                       const pct = (n - r) / (n - 1);
                       return (
@@ -161,6 +161,8 @@ async function Analytics() {
         </div>
       </Card>
 
+      {model.modelCheck && model.modelCheck.seasons.length > 0 && <ModelCheck report={model.modelCheck} />}
+
       <Card className="mt-5">
         <CardHeader
           title="Production left on benches"
@@ -202,6 +204,54 @@ async function Analytics() {
         )}
       </Card>
     </>
+  );
+}
+
+const METRIC_LABEL: Record<MetricKey, string> = {
+  record: "Record (incl. median games)",
+  pointsFor: "Points for",
+  potential: "Lineup potential (max points)",
+  composite: "App's current-strength blend",
+};
+
+function ModelCheck({ report }: { report: BacktestReport }) {
+  const keys: MetricKey[] = ["composite", "pointsFor", "record", "potential"];
+  const best = report.average ? keys.reduce((a, b) => (report.average![b] > report.average![a] ? b : a)) : null;
+  return (
+    <Card className="mt-5">
+      <CardHeader
+        title="Model check: past seasons"
+        subtitle={`How well each signal after week ${report.checkpointWeek} predicted the final regular-season standings`}
+        info="Spearman rank correlation between each team's metric after the checkpoint week and its final regular-season standing (1.0 = perfect order). Playoff hits = how many eventual playoff teams were in that metric's top group. The strategy weights were adjusted using this check."
+      />
+      <div className="overflow-x-auto">
+        <table className="tnum w-full text-sm">
+          <thead className="border-y border-line text-left text-[11px] uppercase tracking-wide text-ink-3">
+            <tr>
+              <th className="py-2 pl-4 font-medium">Signal</th>
+              {report.seasons.map((s) => <th key={s.season} className="py-2 text-right font-medium">{s.season}</th>)}
+              <th className="py-2 pr-4 text-right font-medium">Average ρ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {keys.map((k) => (
+              <tr key={k} className={clsx("border-b border-line/60", k === "composite" && "bg-brand-blue/10")}>
+                <td className="py-2 pl-4 text-ink">{METRIC_LABEL[k]}</td>
+                {report.seasons.map((s) => (
+                  <td key={s.season} className="py-2 text-right text-ink-2">
+                    ρ {s.rho[k].toFixed(2)} <span className="text-[11px] text-ink-3">· {s.playoffHits[k]}/{s.playoffTeams}</span>
+                  </td>
+                ))}
+                <td className={clsx("py-2 pr-4 text-right font-medium", k === best ? "text-accent" : "text-ink")}>{report.average?.[k].toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="px-4 py-3 text-[11px] text-ink-3">
+        Two seasons is a small sample, so weights were nudged rather than fitted: the blend now leans more on points for and record than the original version, while still valuing current lineup strength (which captures trades and injuries that past results can&apos;t).
+      </p>
+    </Card>
   );
 }
 

@@ -1,35 +1,133 @@
 @import "tailwindcss";
 
 /*
- * Dynasty Edge design tokens. Dark is the default (and currently only) theme.
- * Chart series colors were validated for CVD separation and 3:1 contrast on --color-surface.
+ * Dynasty Edge design tokens. Dark is the default; light follows the OS unless the viewer picks a
+ * theme (data-theme on <html>). Chart series colors were validated for CVD separation and contrast
+ * against each theme's surface.
  */
-@theme {
-  --color-bg: #0a1020;
-  --color-surface: #121a2b;
-  --color-surface-2: #172238;
-  --color-surface-3: #1e2b45;
-  --color-line: #233150;
-  --color-line-strong: #2f4166;
-  --color-ink: #e8edf6;
-  --color-ink-2: #aab6cb;
-  --color-ink-3: #7486a3;
+:root {
+  color-scheme: dark;
+  --bg: #0a1020;
+  --surface: #121a2b;
+  --surface-2: #172238;
+  --surface-3: #1e2b45;
+  --line: #233150;
+  --line-strong: #2f4166;
+  --ink: #e8edf6;
+  --ink-2: #aab6cb;
+  --ink-3: #7486a3;
+  --accent: #2dd4bf;
+  --accent-ink: #062b27;
+  --blue: #3987e5;
+  --purple: #8b7cf6;
+  --amber: #f5b041;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --contender-ink: #5fe0b0;
+  --retool-ink: #8ab8f2;
+  --rebuild-ink: #f09a76;
+  --pos-qb: #f472b6;
+  --pos-rb: #34d399;
+  --pos-wr: #60a5fa;
+  --pos-te: #fb923c;
+  --chart-neutral: #7486a3;
+  --chart-grid: #233150;
+  --chart-label: #e8edf6;
+}
 
-  --color-accent: #2dd4bf;
-  --color-accent-ink: #062b27;
-  --color-brand-blue: #3987e5;
-  --color-brand-purple: #8b7cf6;
-  --color-brand-amber: #f5b041;
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f5f7fb;
+    --surface: #ffffff;
+    --surface-2: #f0f3f8;
+    --surface-3: #e5eaf2;
+    --line: #e1e6ef;
+    --line-strong: #c9d2e0;
+    --ink: #0f172a;
+    --ink-2: #3c475b;
+    --ink-3: #5f6b80;
+    --accent: #0d8f80;
+    --accent-ink: #ffffff;
+    --blue: #2a78d6;
+    --purple: #6250d6;
+    --amber: #a8650a;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --contender-ink: #0b7451;
+    --retool-ink: #1d5fae;
+    --rebuild-ink: #b0441b;
+    --pos-qb: #c0267a;
+    --pos-rb: #04805a;
+    --pos-wr: #1f5fd1;
+    --pos-te: #c2510c;
+    --chart-neutral: #8a94a6;
+    --chart-grid: #e1e6ef;
+    --chart-label: #0f172a;
+  }
+}
 
-  /* Chart series (validated): blue, orange, aqua */
-  --color-series-1: #3987e5;
-  --color-series-2: #d95926;
-  --color-series-3: #199e70;
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-2: #f0f3f8;
+  --surface-3: #e5eaf2;
+  --line: #e1e6ef;
+  --line-strong: #c9d2e0;
+  --ink: #0f172a;
+  --ink-2: #3c475b;
+  --ink-3: #5f6b80;
+  --accent: #0d8f80;
+  --accent-ink: #ffffff;
+  --blue: #2a78d6;
+  --purple: #6250d6;
+  --amber: #a8650a;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --contender-ink: #0b7451;
+  --retool-ink: #1d5fae;
+  --rebuild-ink: #b0441b;
+  --pos-qb: #c0267a;
+  --pos-rb: #04805a;
+  --pos-wr: #1f5fd1;
+  --pos-te: #c2510c;
+  --chart-neutral: #8a94a6;
+  --chart-grid: #e1e6ef;
+  --chart-label: #0f172a;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-brand-blue: var(--blue);
+  --color-brand-purple: var(--purple);
+  --color-brand-amber: var(--amber);
+
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
 
   /* Strategy identity (always paired with a text label) */
-  --color-contender: #199e70;
-  --color-retool: #3987e5;
-  --color-rebuild: #d95926;
+  --color-contender: var(--series-3);
+  --color-retool: var(--series-1);
+  --color-rebuild: var(--series-2);
+  --color-contender-ink: var(--contender-ink);
+  --color-retool-ink: var(--retool-ink);
+  --color-rebuild-ink: var(--rebuild-ink);
 
   /* Status (reserved; always with icon + label) */
   --color-good: #0ca30c;
@@ -37,25 +135,13 @@
   --color-serious: #ec835a;
   --color-critical: #d03b3b;
 
-  /* Position badges */
-  --color-pos-qb: #f472b6;
-  --color-pos-rb: #34d399;
-  --color-pos-wr: #60a5fa;
-  --color-pos-te: #fb923c;
+  --color-pos-qb: var(--pos-qb);
+  --color-pos-rb: var(--pos-rb);
+  --color-pos-wr: var(--pos-wr);
+  --color-pos-te: var(--pos-te);
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-}
-
-:root {
-  color-scheme: dark;
-}
-
-body {
-  background: var(--color-bg);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
 }
 
 /*
@@ -72,25 +158,32 @@ body {
   }
 }
 
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
 /* Tabular numbers in data tables keep columns aligned. */
 .tnum {
   font-variant-numeric: tabular-nums;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: 6px;
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--color-accent) 35%, transparent);
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
 }
 
 /* Thin, unobtrusive scrollbars for dense tables. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-line-strong) transparent;
+  scrollbar-color: var(--line-strong) transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {

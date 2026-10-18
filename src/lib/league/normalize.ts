@@ -47,6 +47,8 @@ export function normalizeLeague(league: SleeperLeague): LeagueInfo {
     waiverType: typeof s.waiver_type === "number" ? s.waiver_type : null,
     currentWeek: s.leg ?? null,
     lastScoredWeek: s.last_scored_leg ?? null,
+    medianGame: s.league_average_match === 1,
+    playoffRoundType: typeof s.playoff_round_type === "number" ? s.playoff_round_type : null,
     divisions,
     format: describeFormat(league),
     scoringSettings: league.scoring_settings,

@@ -9,6 +9,7 @@ import { evaluateTrade } from "@/lib/trades/evaluate";
 import { generateTrades } from "@/lib/trades/generate";
 import { getLeague, myTeam } from "@/lib/server/data";
 import { defaultTrades } from "@/lib/server/insights";
+import { annotateTradeOdds } from "@/lib/server/odds";
 
 export const metadata: Metadata = { title: "Trade Hub" };
 
@@ -28,7 +29,7 @@ async function Hub({ searchParams }: { searchParams: Promise<{ partner?: string 
   const objective = me.strategy.effective;
   const partnerId = partner && model.teams.some((t) => t.team.rosterId === Number(partner) && !t.team.isMine) ? Number(partner) : null;
   const proposals = partnerId
-    ? generateTrades(model, me.team.rosterId, { objective, partnerRosterIds: [partnerId], perPartner: 15, limit: 40, untouchables: prefs.untouchables, tradeBlock: prefs.tradeBlock, targets: prefs.targets })
+    ? annotateTradeOdds(model, generateTrades(model, me.team.rosterId, { objective, partnerRosterIds: [partnerId], perPartner: 15, limit: 40, untouchables: prefs.untouchables, tradeBlock: prefs.tradeBlock, targets: prefs.targets }), objective)
     : defaultTrades(model, prefs, objective, 30);
 
   // Saved proposals are re-evaluated against today's rosters; anything no longer owned is flagged.
@@ -41,7 +42,7 @@ async function Hub({ searchParams }: { searchParams: Promise<{ partner?: string 
     return {
       ...s,
       problem: null,
-      evaluation: evaluateTrade(model, { myRosterId: me.team.rosterId, partnerRosterId: s.partnerRosterId, myGives: mine.map((a) => a!), theirGives: theirs.map((a) => a!), objective }),
+      evaluation: annotateTradeOdds(model, [evaluateTrade(model, { myRosterId: me.team.rosterId, partnerRosterId: s.partnerRosterId, myGives: mine.map((a) => a!), theirGives: theirs.map((a) => a!), objective })], objective)[0],
     };
   });
 

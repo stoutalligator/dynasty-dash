@@ -1,6 +1,7 @@
 import { optimalLineup, type LineupCandidate } from "@/lib/analysis/lineup";
 import type { LeagueModel, Strategy, TeamAnalysis } from "@/lib/analysis/types";
-import { SKILL_POSITIONS, type SkillPosition } from "@/lib/league/models";
+import type { SkillPosition } from "@/lib/league/models";
+import type { OddsDelta } from "@/lib/sim/context";
 import { packageValue, type TradeAsset } from "./assets";
 
 export type TradeObjective = Strategy;
@@ -66,6 +67,8 @@ export type TradeEvaluation = {
   overall: number;
   risks: string[];
   helpsMe: Strategy[];
+  /** Season-simulation odds before → after for both sides (attached on the server when available). */
+  odds?: { mine: OddsDelta; partner: OddsDelta } | null;
 };
 
 const YOUNG = 25;
@@ -102,7 +105,7 @@ export function evaluateSide(model: LeagueModel, team: TeamAnalysis, gives: Trad
   const lineupAfter = optimalLineup(after, model.league.startingSlots).total;
   const lineupDelta = Math.round((lineupAfter - team.lineup.total) * 100) / 100;
 
-  const positionDeltas = SKILL_POSITIONS.map((pos) => ({
+  const positionDeltas = model.gradedPositions.map((pos) => ({
     position: pos,
     before: Math.round(topK(before, pos, model.startersPerPosition[pos]) * 10) / 10,
     after: Math.round(topK(after, pos, model.startersPerPosition[pos]) * 10) / 10,

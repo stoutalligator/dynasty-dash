@@ -7,6 +7,8 @@
 - **Finds sleepers on the waiver wire.**
 - **Studies three seasons of league history**, including every trade and draft.
 - **Suggests realistic two- and three-team trades**, with the reasoning shown.
+- **Simulates the rest of the season** to estimate every team's playoff and title odds, and shows how each trade would change yours.
+- **Sends a weekly digest** to Discord, Slack or your phone.
 
 It is built for one league (Monson Dynasty Squad), but nothing is hardcoded to it. Point `SLEEPER_LEAGUE_ID` at another Sleeper league and the format, scoring, roster slots, baselines and history all come from that league's live data.
 
@@ -21,7 +23,38 @@ npm run league-audit          # fetch + map the league, write data/league-audit.
 npm run dev                   # http://localhost:3000
 ```
 
-No Sleeper account, API key, database or paid service is needed. The first page load downloads the player database, this season's weekly stats and prior seasons' history (about 10–15 s). Later loads come from the cache.
+No Sleeper account, API key, database or paid service is needed locally: data is cached in `.cache/` and preferences in `data/`. The first page load downloads the player database, this season's weekly stats and projections, and prior seasons' history (about 10–20 s). Later loads come from the cache.
+
+## Deploying to Vercel
+
+1. **Create a database for this app.** Create a new Neon project, or at least a separate database. Don't reuse another app's production database. The easiest route is Vercel → your project → **Storage → Create Database → Neon**, which provisions it and sets `DATABASE_URL` for you.
+2. **Import the repo** in Vercel (framework: Next.js; defaults are fine). Put the functions in the same region as the database if you can.
+3. **Set environment variables** (Project → Settings → Environment Variables):
+
+   | Variable | Value |
+   |---|---|
+   | `SLEEPER_LEAGUE_ID` | `1322942286111207424` |
+   | `MY_ROSTER_ID` / `EXPECTED_TEAM_NAME` | `1` / `Fiester Famine` |
+   | `APP_PASSWORD` | A password for the site (8+ characters). Without it the site is public. |
+   | `CRON_SECRET` | A long random string. Vercel Cron sends it automatically. |
+   | `DATABASE_URL` | Set by the Neon integration. |
+   | `DIGEST_WEBHOOK_URL` *(optional)* | Discord or Slack incoming-webhook URL for the weekly digest. |
+   | `NTFY_TOPIC` *(optional)* | An unguessable ntfy.sh topic for phone push notifications. |
+
+4. **Deploy.** The table is created on first use. To check it from your machine, put the same `DATABASE_URL` in `.env` and run `npm run db:setup`.
+5. **Warm the cache** once, so the first visit is fast:
+   `curl -H "Authorization: Bearer <CRON_SECRET>" https://<your-app>.vercel.app/api/cron/refresh`
+
+Scheduled jobs come from `vercel.json` (times are UTC):
+
+| Job | Schedule | What it does |
+|---|---|---|
+| Refresh | daily 11:00 | Refreshes all data and pre-builds trade ideas |
+| Digest | Tuesday 15:00 | Builds the weekly digest and sends it |
+
+Vercel's Hobby plan runs each job at most once a day, which is all these need.
+
+What happens on Vercel without a database: the app still works using temporary storage. Preferences, saved trades and digests won't persist, and the app warns about it.
 
 ## Environment variables
 
@@ -32,7 +65,16 @@ No Sleeper account, API key, database or paid service is needed. The first page 
 | `EXPECTED_TEAM_NAME` | — | Cross-check for your team name (also used to find your roster if no id is set). |
 | `VALUATION_PROVIDER` | `fantasycalc` | `fantasycalc` (free third-party dynasty values) or `none` (internal estimate only). |
 | `FUTURE_PICK_SEASONS` | `3` | How many upcoming rookie drafts to show pick ownership for. |
-| `CACHE_DIR` | `.cache` | Where JSON caches are written (gitignored). |
+| `SIM_RUNS` | `10000` | Simulated seasons for playoff/title odds. Each trade proposal uses 3,000 runs. |
+| `STORAGE` | `auto` | `auto` picks Postgres if `DATABASE_URL` is set, else Upstash if configured, else files. Can be forced: `file`, `postgres` or `upstash`. |
+| `DATABASE_URL` | — | Neon/Postgres connection string (`POSTGRES_URL` is also accepted). |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | — | Optional Redis alternative (`KV_REST_API_*` also accepted). |
+| `CACHE_DIR` / `DATA_DIR` | `.cache` / `data` | Local file storage when no database is configured (gitignored). |
+| `APP_PASSWORD` | — | Site password. Leave empty locally. |
+| `AUTH_SECRET` | derived | Signs session cookies. |
+| `CRON_SECRET` | — | Bearer secret required by `/api/cron/*`. |
+| `DIGEST_WEBHOOK_URL` / `NTFY_TOPIC` | — | Digest delivery: Discord or Slack webhook, and/or ntfy push. |
+| `APP_URL` | Vercel URL | Base URL for links in the digest. |
 | `LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error` structured JSON logs. |
 
 ## Scripts
@@ -42,6 +84,7 @@ No Sleeper account, API key, database or paid service is needed. The first page 
 | `npm run dev` | Dev server. |
 | `npm run build && npm start` | Production build / server. |
 | `npm run league-audit` | League audit → `data/league-audit.json` (league metadata, managers, rosters with mapped players, pick ownership, freshness, issues). `-- --refresh` refetches league data; `-- --refresh-all` also re-downloads the player database. |
+| `npm run db:setup` | Checks the configured storage and creates the Postgres table. |
 | `npm run inspect` | One-screen summary of the analysis model: grades, strategies, lineups, free-agent pool and history. |
 | `npm test` | Vitest unit + integration tests. |
 | `npm run typecheck` / `npm run lint` | Strict TypeScript / ESLint. |
@@ -61,7 +104,8 @@ Sleeper is the source of truth for league settings, rosters, ownership, matchups
 | Matchups | `/league/{id}/matchups/{week}` | 10 min current / 24 h completed |
 | NFL players (~15 MB) | `/players/nfl` | 24 h (raw copy kept in `.cache/raw/`) |
 | Weekly NFL stats, all players | `/stats/nfl/regular/{season}/{week}` ¹ | 1 h latest week / 24 h older |
-| Weekly projections | `/projections/nfl/regular/{season}/{week}` ¹ | 6 h (current + next two weeks) |
+| Weekly projections | `/projections/nfl/regular/{season}/{week}` ¹ | 6 h upcoming / 7 days past (week 1 through the championship) |
+| Remaining schedule | `/league/{id}/matchups/{week}` (future weeks) | 24 h |
 | Trending adds/drops | `/players/nfl/trending/{add,drop}` | 30 min |
 | Past seasons | `previous_league_id` chain + `/league/{id}/winners_bracket` | 7 days (completed seasons) |
 | Dynasty values | FantasyCalc `values/current` | 12 h |
@@ -84,9 +128,17 @@ Sleeper is the source of truth for league settings, rosters, ownership, matchups
 | **Waiver Wire** | Every unrostered QB/RB/WR/TE ranked by a transparent pickup score. Tiers (Strong add / Worth a look / Stash / Monitor), reasons, weekly sparkbars, best fits for your roster, drop candidates, FAAB remaining, trending-and-available, recently dropped. |
 | **Trade Hub** | Two-team engine (objective, partner, position, age, package size and pick controls; untouchable / trade-block / target flags; two-sided breakdowns; builder; compare up to three; saved proposals re-checked against current rosters) and an exploratory **three-team** search. |
 | **Draft Picks** | Ownership matrix by team × season × round, traded-pick list, estimated values. |
-| **Analytics** | Weekly score vs. league median, age vs. asset value, lineup efficiency, positional heatmap, weekly scores, production left on benches. |
+| **Analytics** | Weekly score vs. league median, age vs. asset value, lineup efficiency, positional heatmap, weekly scores, production left on benches, and a **model check** against past seasons. |
 | **History** | Champions and final standings for every season, manager trading profiles, trade ledger valued with hindsight (traded picks resolved to the players drafted with them), and a who-trades-with-whom matrix. |
-| **Settings** | Config verification, per-source freshness, refresh, valuation provider status, strategy overrides for every team, data issues. |
+| **Digest** | The latest weekly digest, previous weeks, and "build / send now" buttons. |
+| **Settings** | Config verification, storage / sign-in / cron / digest status, per-source freshness, refresh, valuation provider, appearance, strategy overrides for every team, data issues, sign out. |
+
+**Also throughout the app:**
+
+- **Odds:** team pages and the Dashboard show playoff and title odds, the League page has a **Playoff odds** tab, and every trade proposal shows how your odds change (title X% → Y%, playoffs X% → Y%).
+- **Player details:** tap any player name for a drawer with their game log (points, snap share, targets/carries, started or benched), projections, value and status.
+- **Theme:** a System / Light / Dark switch in the sidebar.
+- **Kickers and defenses** are graded automatically in leagues that start them.
 
 The UI is dark-themed and responsive. Every page has been checked at a 390 px phone width with no horizontal scrolling: wide tables become compact lists and the sidebar becomes a drawer.
 
@@ -104,7 +156,7 @@ Every number is either actual data (Sleeper), third-party data (labeled with its
 - **Best lineup.** Fills the league's real starting slots from starters and bench (taxi and IR can't start), most restrictive slot first. *Lineup impact* is the adjusted PPG lost without a player. The **projected lineup** does the same with Sleeper's projections for this week, excluding players listed Out or IR.
 - **Positional grades.** 60% production rank of a team's top-N at the position, where N is how many that position the league's best lineups actually start (2 QBs here because of superflex), plus 40% dynasty-value rank.
 - **Strategy (Contender / Retool / Rebuilder).**
-  - *Current strength:* best-lineup PPG 45%, points for 20%, potential points 15%, win % 20%. At 62 or above a team is a contender; at 38 or below it is rebuilding.
+  - *Current strength:* best-lineup PPG 35%, points for 30%, win % 25%, potential points 10%. At 62 or above a team is a contender; at 38 or below it is rebuilding. These weights were calibrated with the model check (below).
   - *Future score:* youth, young-player value and draft capital.
   - *Confidence* reflects distance from the thresholds.
   - These are estimates of a team's position, not of a manager's intent, and every team can be overridden.
@@ -144,6 +196,36 @@ Every number is either actual data (Sleeper), third-party data (labeled with its
 - **Traded picks.** Picks from completed drafts resolve to the drafted player through the draft's slot-to-roster map. Future picks use current pick values.
 - **Hindsight.** Values use today's numbers and ignore points already scored. They are labeled as a rough signal, not a verdict.
 
+### Season simulation (playoff and title odds)
+
+- **Weekly team scores.** Each team's expected score is its best lineup by Sleeper's projections for that week. For the current week, players listed Out/IR are excluded.
+- **Calibration.** Projections are scaled to this league's actual scoring so far (projected vs. actual lineups in completed weeks; currently ×1.03).
+- **Variance.** Weekly scores are drawn from a normal distribution whose spread is the within-team standard deviation of every weekly score in this league's history (currently about 25 points).
+- **Schedule.** The real remaining pairings come from Sleeper, plus the league-median game when enabled.
+- **Seeding.** Division winners take the top seeds, then the best records (wins, then points for).
+- **Playoffs.** Byes go to the top seeds, and each round pairs the highest remaining seed with the lowest.
+- **Trades.** The same random draws are reused for the baseline and the "what if" roster, so odds changes reflect the trade and not noise. Title-odds change also feeds trade ranking for contending (0.25 per point) and retooling (0.10) objectives.
+- **Assumptions** are listed under the odds table. Rosters are held fixed, and Sleeper's exact bracket and tiebreakers may differ.
+
+### Model check (backtest)
+
+Analytics replays 2024 and 2025 from the same point in the season (week 4–8). For each early signal (record, points for, lineup potential, and the app's blend) it reports the Spearman correlation with the final regular-season standings, and how many eventual playoff teams it had in its top group.
+
+In this league, points for and record after week 6 predicted the final order better than lineup potential alone (ρ ≈ 0.90 vs 0.76). So the strategy blend was shifted from 45/20/15/20 to 35/30/25/10, which raised its correlation from 0.83 to 0.87. With only two seasons, the weights were nudged rather than fitted.
+
+### Weekly digest
+
+The digest is built from the same model and compared with the previous digest. It covers:
+
+- record and odds, with the change since last week
+- the best waiver fits and FAAB left
+- your injuries, with new ones flagged
+- the top three trade ideas with their odds change
+- teams whose buy/sell posture changed
+- the trade-deadline countdown and title favorites
+
+It is stored in the database and posted to Discord/Slack (`DIGEST_WEBHOOK_URL`) and/or ntfy (`NTFY_TOPIC`).
+
 ### Fallback valuation
 
 With `VALUATION_PROVIDER=none` (or if FantasyCalc is unreachable), values come from production above each position's replacement level times a position age curve, labeled as approximations.
@@ -152,17 +234,22 @@ With `VALUATION_PROVIDER=none` (or if FantasyCalc is unreachable), values come f
 
 ```
 src/
-  app/                    Pages (App Router), server actions (actions.ts), error / not-found
+  proxy.ts                Password gate (signed session cookie; cron routes use CRON_SECRET)
+  app/                    (dashboard)/ pages with the app shell, login/, api/cron/{refresh,digest}, server actions
   components/             UI: shell, team, trades (incl. three-team), waivers, history, league, charts, primitives
   lib/
     config.ts             Zod-validated environment config
-    cache/file-cache.ts   JSON-on-disk cache: TTLs, stale fallback, in-flight de-dupe
+    store/                Key/value storage: local files, Neon Postgres (one gzip-compressed table), Upstash Redis
+    cache/file-cache.ts   Read-through data cache over the store: TTLs, stale fallback, in-flight de-dupe
+    auth.ts               Session tokens (Web Crypto HMAC), password and cron checks
+    sim/                  Season Monte Carlo (seeded, common random numbers) and odds-for-trades
+    digest/               Weekly digest builder, storage and delivery (Discord/Slack/ntfy)
     sleeper/              HTTP client (timeouts, retries, validation), schemas, endpoints
     players/              Player DB normalization + roster/manager mapping (shared by script and site)
     league/               Domain models, snapshot loader, pick ownership, audit report
     stats/                League scoring of raw stats, weekly stats / projections / trending loaders
     history/              Previous-league chain loader, multi-season analysis (ledger, profiles, champions)
-    analysis/             Production, lineup optimizer, grades, strategy, model builder, recommendations, waivers
+    analysis/             Production, lineup optimizer, grades, strategy, model builder, recommendations, waivers, backtest
     trades/               Assets, trade evaluation, two-team generation, three-team cycles
     providers/            Valuation provider interface, FantasyCalc, internal estimate
     prefs/store.ts        Local JSON preferences (overrides, flags, saved proposals)
@@ -173,13 +260,13 @@ tests/                    Vitest: mapping, picks, lineup/strategy, model + trade
 
 Stack: Next.js 16 (App Router, Cache Components), React 19, TypeScript (strict), Tailwind CSS 4, Zod 4, Recharts 3, Vitest. Pages stream live data inside `<Suspense>` after `connection()`, so league data is never baked into a static build.
 
-Persistence is a gitignored local JSON file (`data/user-prefs.json`). That is fine for a personal tool. Before deploying to a read-only or serverless host, swap `lib/prefs/store.ts` and the file cache for a database or KV store.
+Persistence goes through `lib/store`. Locally that's gitignored files; on Vercel it's Neon Postgres. Cached API data and user data (preferences, saved trades, digests) share one small table, stored under separate namespaces.
 
 ## Known limitations
 
 - **Undocumented feeds.** Weekly stats and projections come from undocumented Sleeper endpoints. They are validated and have a fallback, but could change without notice.
-- **Projections.** Projections are Sleeper's (current week plus the next two). No rest-of-season projection source is integrated yet.
-- **Unscored slots.** K / DEF / IDP slots are filled if present but not graded, and the waiver wire covers QB/RB/WR/TE.
+- **Projections.** Projections are Sleeper's. The season simulation assumes today's rosters for the rest of the season.
+- **IDP.** Individual defensive player (IDP) slots are filled if present but not graded. K and DEF are graded only in leagues that start them.
 - **Three-team scope.** Three-team search covers one-for-one-for-one cycles only.
 - **FantasyCalc.** The endpoint is public but undocumented. It is optional and falls back to the internal estimate.
 - **Not integrated.** ESPN/Yahoo data is not integrated. Their APIs don't expose private league data publicly.

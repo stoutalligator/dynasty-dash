@@ -12,6 +12,12 @@ export const SLOT_ELIGIBILITY: Record<string, string[]> = {
   SUPER_FLEX: ["QB", "RB", "WR", "TE"],
 };
 
+/** Gradable positions eligible for at least one of the league's starting slots, in display order. */
+export function gradedPositions(startingSlots: string[]): string[] {
+  const eligible = new Set(startingSlots.flatMap((s) => SLOT_ELIGIBILITY[s] ?? []));
+  return ["QB", "RB", "WR", "TE", "K", "DEF"].filter((p) => eligible.has(p));
+}
+
 export type LineupCandidate = { id: string; positions: string[]; score: number };
 export type LineupAssignment = { slot: string; playerId: string | null; score: number };
 export type Lineup = { assignments: LineupAssignment[]; total: number };

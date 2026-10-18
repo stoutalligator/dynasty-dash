@@ -1,28 +1,26 @@
 import { isUnavailable } from "@/lib/players/normalize";
 import type { LeagueSnapshot, PlayerInfo, SkillPosition, Team } from "@/lib/league/models";
-import { SKILL_POSITIONS } from "@/lib/league/models";
 import { ordinal, pickId } from "@/lib/league/picks";
 import type { Prefs } from "@/lib/prefs/store";
 import type { ProviderStatus } from "@/lib/providers";
 import { buildInternalValuation } from "@/lib/providers/internal";
 import type { ValuationSet } from "@/lib/providers/types";
 import { gradeFromRank, median, rankAsc, rankDesc, rankPct } from "./grades";
-import { lineupImpacts, optimalLineup, type LineupCandidate } from "./lineup";
+import { gradedPositions, lineupImpacts, optimalLineup, type LineupCandidate } from "./lineup";
 import { analyzeHistory } from "@/lib/history/analyze";
 import type { LeagueHistory } from "@/lib/history/load";
 import type { StatsBundle } from "@/lib/stats/load";
 import { computeProduction, computeProductionFromStats, round, teamWeeklyScores, type PlayerProduction } from "./production";
-import { classify, STRATEGY_LABEL, type StrategyInputs } from "./strategy";
+import { classify, NOW_WEIGHTS, STRATEGY_LABEL, type StrategyInputs } from "./strategy";
 import type { LeagueModel, Need, PickView, PlayerView, PositionGrade, ProductionSummary, TeamAnalysis } from "./types";
 
 /** Age at which each position typically starts declining (heuristic, used for "age risk"). */
 export const AGE_RISK: Record<string, number> = { QB: 33, RB: 27, WR: 29, TE: 30 };
 /** Extra players per position counted as depth beyond typical starters. */
-const DEPTH_COUNT: Record<SkillPosition, number> = { QB: 1, RB: 2, WR: 2, TE: 1 };
+const DEPTH_COUNT: Record<string, number> = { QB: 1, RB: 2, WR: 2, TE: 1, K: 0, DEF: 0 };
 /** Ages at or below this count toward "young core" value. */
 const YOUNG_AGE = 25;
 
-const isSkill = (pos: string | null): pos is SkillPosition => !!pos && (SKILL_POSITIONS as readonly string[]).includes(pos);
 
 function summarize(p: PlayerProduction | undefined): ProductionSummary | null {
   if (!p) return null;
@@ -40,7 +38,7 @@ function summarize(p: PlayerProduction | undefined): ProductionSummary | null {
     weeksStarted: p.weeksStarted,
     weeksBenched: p.weeksBenched,
     benchPoints: p.benchPoints,
-    weekly: p.weekly.map(({ week, points, started, snapShare, played }) => ({ week, points, started, snapShare, played })),
+    weekly: p.weekly.map(({ week, points, started, snapShare, opportunities, played }) => ({ week, points, started, snapShare, opportunities, played })),
     source: p.source,
   };
 }
@@ -65,21 +63,27 @@ export type BuildModelInput = {
 export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs, stats = null, trending = null, history = null }: BuildModelInput): LeagueModel {
   const n = s.teams.length;
   const slots = s.league.startingSlots;
+  const POSITIONS = gradedPositions(slots);
+  const isSkill = (pos: string | null): pos is SkillPosition => !!pos && POSITIONS.includes(pos);
   const statsSource = stats && stats.stats.size > 0 ? "stats" : "matchups";
   const production =
     statsSource === "stats" ? computeProductionFromStats(stats!.stats, s.weeks, (id) => s.players[id]?.position ?? null) : computeProduction(s.weeks);
-  const projectionWeeks = stats ? [...stats.projections.keys()].sort((a, b) => a - b) : [];
+  // Projections may include completed weeks (used for calibration); player fields use upcoming weeks only.
+  const fromWeek = s.league.currentWeek ?? (s.league.lastScoredWeek ?? 0) + 1;
+  const projectionWeeks = stats ? [...stats.projections.keys()].filter((w) => w >= fromWeek).sort((a, b) => a - b) : [];
   const projWeek = projectionWeeks[0] ?? null;
   const projFor = (id: string) => (projWeek != null ? (stats!.projections.get(projWeek)?.get(id)?.pts ?? null) : null);
-  const projNextFor = (id: string) => {
-    if (!projectionWeeks.length) return null;
+  const projSum = (id: string, weeks: number[]) => {
+    if (!weeks.length) return null;
     let sum = 0, any = false;
-    for (const w of projectionWeeks) {
+    for (const w of weeks) {
       const v = stats!.projections.get(w)?.get(id)?.pts;
       if (v != null) { sum += v; any = true; }
     }
     return any ? round(sum, 1) : null;
   };
+  const projNextFor = (id: string) => projSum(id, projectionWeeks.slice(0, 3));
+  const projRosFor = (id: string) => projSum(id, projectionWeeks);
   const scoredWeeks = s.weeks.filter((w) => w.complete).length;
 
   // Lineup-eligible pool excludes taxi and reserve (they cannot be started in Sleeper).
@@ -88,7 +92,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
 
   // Typical starters per position, derived from every team's best lineup (generalizes across formats).
   const startersPerPosition = Object.fromEntries(
-    SKILL_POSITIONS.map((pos) => {
+    POSITIONS.map((pos) => {
       let count = 0;
       for (const [rid, lu] of lineups) {
         const team = s.teams.find((t) => t.rosterId === rid)!;
@@ -104,7 +108,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
   // Replacement level: the best player just outside the league's collective starters at each position.
   const rostered = s.teams.flatMap((t) => t.roster.map((r) => r.player));
   const replacementPpg = Object.fromEntries(
-    SKILL_POSITIONS.map((pos) => {
+    POSITIONS.map((pos) => {
       const scores = rostered.filter((p) => p.position === pos).map((p) => production.get(p.id)?.adjPpg ?? 0).sort((a, b) => b - a);
       return [pos, round(scores[startersPerPosition[pos] * n] ?? 0)];
     }),
@@ -158,13 +162,14 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
         tags: [],
         projWeek: projFor(r.player.id),
         projNext: projNextFor(r.player.id),
+        projRos: projRosFor(r.player.id),
         trendingAdds: trending?.adds.get(r.player.id) ?? null,
       };
     });
     const byPos = (pos: SkillPosition) =>
       players.filter((p) => p.position === pos).sort((a, b) => (b.prod?.adjPpg ?? 0) - (a.prod?.adjPpg ?? 0));
     const posMetrics = Object.fromEntries(
-      SKILL_POSITIONS.map((pos) => {
+      POSITIONS.map((pos) => {
         const list = byPos(pos);
         const active = list.filter((p) => p.slot === "starter" || p.slot === "bench");
         const k = startersPerPosition[pos];
@@ -172,7 +177,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
           pos,
           {
             starterPpg: round(active.slice(0, k).reduce((a, p) => a + (p.prod?.adjPpg ?? 0), 0)),
-            depthPpg: round(active.slice(k, k + DEPTH_COUNT[pos]).reduce((a, p) => a + (p.prod?.adjPpg ?? 0), 0)),
+            depthPpg: round(active.slice(k, k + (DEPTH_COUNT[pos] ?? 0)).reduce((a, p) => a + (p.prod?.adjPpg ?? 0), 0)),
             value: list.reduce((a, p) => a + (p.value ?? 0), 0),
             playerIds: list.map((p) => p.id),
           },
@@ -208,7 +213,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
   const potRanks = hasPotential ? rankDesc(base.map((b) => b.t.potentialPoints!)) : null;
   const winRanks = rankDesc(base.map((b) => b.winPct));
   const provisionalNow = base.map((_, i) =>
-    0.45 * rankPct(lineupRanks[i], n) + 0.2 * rankPct(pfRanks[i], n) + 0.15 * rankPct((potRanks ?? lineupRanks)[i], n) + 0.2 * rankPct(winRanks[i], n),
+    NOW_WEIGHTS.lineup * rankPct(lineupRanks[i], n) + NOW_WEIGHTS.pointsFor * rankPct(pfRanks[i], n) + NOW_WEIGHTS.potential * rankPct((potRanks ?? lineupRanks)[i], n) + NOW_WEIGHTS.win * rankPct(winRanks[i], n),
   );
   const powerRanks = rankDesc(provisionalNow);
   const powerByRoster = new Map(base.map((b, i) => [b.t.rosterId, powerRanks[i]]));
@@ -232,7 +237,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
 
   // ---- Ranks across the league ----------------------------------------------------------------
   const posRanks = Object.fromEntries(
-    SKILL_POSITIONS.map((pos) => [
+    POSITIONS.map((pos) => [
       pos,
       {
         starter: rankDesc(base.map((b) => b.posMetrics[pos].starterPpg)),
@@ -241,7 +246,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
       },
     ]),
   ) as Record<SkillPosition, { starter: number[]; depth: number[]; value: number[] }>;
-  const depthTotals = base.map((b) => SKILL_POSITIONS.reduce((a, pos) => a + b.posMetrics[pos].depthPpg, 0));
+  const depthTotals = base.map((b) => POSITIONS.reduce((a, pos) => a + b.posMetrics[pos].depthPpg, 0));
   const depthRanks = rankDesc(depthTotals);
   const pickTotals = base.map((b) => pickViews.filter((p) => p.ownerRosterId === b.t.rosterId).reduce((a, p) => a + p.value, 0));
   const capitalRanks = rankDesc(pickTotals);
@@ -258,7 +263,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
 
   // Position grade = rank of a 60/40 blend of production rank and dynasty-value rank.
   const compositeRanks = Object.fromEntries(
-    SKILL_POSITIONS.map((pos) => {
+    POSITIONS.map((pos) => {
       const r = posRanks[pos];
       return [pos, rankDesc(base.map((_, j) => 0.6 * rankPct(r.starter[j], n) + 0.4 * rankPct(r.value[j], n)))];
     }),
@@ -266,7 +271,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
 
   const teams: TeamAnalysis[] = base.map((b, i) => {
     const positions = Object.fromEntries(
-      SKILL_POSITIONS.map((pos) => {
+      POSITIONS.map((pos) => {
         const r = posRanks[pos];
         const overall = gradeFromRank(compositeRanks[pos][i], n);
         const g: PositionGrade = {
@@ -326,7 +331,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
       if (p.slot !== "taxi" && (p.prod?.activeWeeks ?? 0) < 2 && scoredWeeks >= 2) p.tags.push("Low sample");
     }
 
-    const needs: Need[] = SKILL_POSITIONS.flatMap((pos) => {
+    const needs: Need[] = POSITIONS.flatMap((pos) => {
       const g = positions[pos];
       if (g.starterRank < Math.ceil(n * 2 / 3)) return [];
       const leagueMed = median(base.map((x) => x.posMetrics[pos].starterPpg));
@@ -341,10 +346,10 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
       .filter((p) => !p.inBestLineup && p.slot !== "reserve" && (p.value ?? 0) >= 1500 && isSkill(p.position) && positions[p.position].depthRank <= Math.ceil(n / 3))
       .map((p) => p.id);
 
-    const strengths = SKILL_POSITIONS.filter((pos) => positions[pos].overall.rank <= Math.ceil(n / 4)).map(
+    const strengths = POSITIONS.filter((pos) => positions[pos].overall.rank <= Math.ceil(n / 4)).map(
       (pos) => `${pos}: ${positions[pos].overall.grade} (${ordinal(positions[pos].starterRank)} in production, ${ordinal(positions[pos].valueRank)} in value)`,
     );
-    const weaknesses = SKILL_POSITIONS.filter((pos) => positions[pos].overall.rank > n - Math.ceil(n / 3)).map(
+    const weaknesses = POSITIONS.filter((pos) => positions[pos].overall.rank > n - Math.ceil(n / 3)).map(
       (pos) => `${pos}: ${positions[pos].overall.grade} (${ordinal(positions[pos].starterRank)} in production, ${ordinal(positions[pos].valueRank)} in value)`,
     );
 
@@ -401,7 +406,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
       injury: p.injury, mapped: true, rosterId: null, slot: null, starterSlot: null, prod: summarize(production.get(id)),
       value: v?.value ?? null, redraftValue: v?.redraftValue ?? null, positionRank: v?.positionRank ?? null, valueSource, lineupImpact: 0,
       inBestLineup: false, ageRisk: p.age != null && p.age >= (AGE_RISK[p.position ?? ""] ?? 99), tags: ["Free agent"],
-      projWeek: projFor(id), projNext: projNextFor(id), trendingAdds: trending?.adds.get(id) ?? null,
+      projWeek: projFor(id), projNext: projNextFor(id), projRos: projRosFor(id), trendingAdds: trending?.adds.get(id) ?? null,
     });
   }
   freeAgents.sort((a, b) => (b.value ?? 0) - (a.value ?? 0) || (b.prod?.ppg ?? 0) - (a.prod?.ppg ?? 0));
@@ -433,7 +438,10 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
     playerNames,
     scoredWeeks,
     statsSource,
-    projectionWeeks,
+    gradedPositions: POSITIONS,
+    projectionWeeks: projectionWeeks.slice(0, 3),
+    odds: null,
+    modelCheck: null,
     trendingFetchedAt: trending?.fetchedAt ?? null,
     history: history
       ? analyzeHistory(history, {

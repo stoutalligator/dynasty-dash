@@ -11,9 +11,11 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "inspect": "node --env-file=.env --import tsx src/scripts/inspect-model.ts",
-    "league-audit": "node --env-file=.env --import tsx src/scripts/map-players.ts"
+    "league-audit": "node --env-file=.env --import tsx src/scripts/map-players.ts",
+    "db:setup": "node --env-file=.env --import tsx src/scripts/db-setup.ts"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.2.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.59.0",
     "next": "16.4.2",

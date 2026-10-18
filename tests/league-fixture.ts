@@ -75,11 +75,11 @@ export function buildSnapshot(): LeagueSnapshot {
   const league = normalizeLeague({
     league_id: "L", name: "Test League", season: "2026", status: "in_season", total_rosters: 4,
     roster_positions: [...SLOTS, "BN", "BN", "BN", "BN"], scoring_settings: { rec: 0.5 },
-    settings: { num_teams: 4, draft_rounds: 2, leg: 4, last_scored_leg: 3 },
+    settings: { num_teams: 4, draft_rounds: 2, leg: 4, last_scored_leg: 3, playoff_week_start: 6, playoff_teams: 2, league_average_match: 1 },
   });
   const picks = [1, 2, 3, 4].flatMap((rid) => [1, 2].map((round) => ({ season: "2027", round, originalRosterId: rid, ownerRosterId: rid, previousOwnerRosterId: null, source: "implied" as const, slot: null })));
   return {
-    generatedAt: asOf.toISOString(), league, teams, picks, pickSeasons: ["2027"], transactions: [], weeks, players,
+    generatedAt: asOf.toISOString(), league, teams, picks, pickSeasons: ["2027"], transactions: [], weeks, schedule: [{ week: 4, pairs: [[1, 2], [3, 4]] }, { week: 5, pairs: [[1, 3], [2, 4]] }], players,
     freshness: {}, issues: [], verification: { configuredLeagueId: "L", leagueFound: true, expectedRosterId: 1, expectedTeamName: null, myRosterId: 1, myTeamName: "Team 1", notes: [] },
   };
 }

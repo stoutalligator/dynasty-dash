@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { Search } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import { PlayerAvatar } from "@/components/avatar";
+import { PlayerDrawer } from "@/components/player-drawer";
 import { Segmented } from "@/components/team/roster-table";
 import { InjuryBadge, PosBadge } from "@/components/ui";
 import type { PickupTier, WaiverCandidate } from "@/lib/analysis/waivers";
@@ -42,6 +43,7 @@ export function WaiverExplorer({ candidates, projectionWeek }: { candidates: Wai
   const [sort, setSort] = useState<SortKey>("score");
   const [q, setQ] = useState("");
   const [limit, setLimit] = useState(30);
+  const [selected, setSelected] = useState<WaiverCandidate["player"] | null>(null);
   const query = useDeferredValue(q.trim().toLowerCase());
 
   const rows = useMemo(() => {
@@ -107,7 +109,7 @@ export function WaiverExplorer({ candidates, projectionWeek }: { candidates: Wai
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <PosBadge pos={p.position} />
-                    <span className="truncate font-medium text-ink">{p.name}</span>
+                    <button type="button" onClick={() => setSelected(p)} className="truncate text-left font-medium text-ink hover:underline">{p.name}</button>
                     <InjuryBadge injury={p.injury} compact />
                   </div>
                   <div className="mt-0.5 text-[11px] text-ink-3">
@@ -147,6 +149,7 @@ export function WaiverExplorer({ candidates, projectionWeek }: { candidates: Wai
           );
         })}
       </ul>
+      <PlayerDrawer player={selected} onClose={() => setSelected(null)} />
       {rows.length > limit && (
         <div className="px-4 pb-4">
           <button type="button" onClick={() => setLimit((l) => l + 30)} className="w-full rounded-lg border border-line bg-surface-2 py-2 text-sm text-ink-2 hover:text-ink">

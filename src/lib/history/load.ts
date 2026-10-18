@@ -1,7 +1,6 @@
 import { getCache } from "@/lib/cache/file-cache";
-import { getConfig } from "@/lib/config";
-import type { Issue, Transaction } from "@/lib/league/models";
-import { normalizeTransaction } from "@/lib/league/normalize";
+import type { Issue, Transaction, WeekResult } from "@/lib/league/models";
+import { normalizeMatchup, normalizeTransaction } from "@/lib/league/normalize";
 import { logger } from "@/lib/log";
 import { createSleeperClient, type SleeperClient } from "@/lib/sleeper/client";
 import type { SleeperDraft, SleeperDraftPick, SleeperLeague, SleeperRoster, SleeperUser } from "@/lib/sleeper/schemas";
@@ -33,13 +32,15 @@ export type HistoricalSeason = {
   placements: Record<number, number>;
   transactions: Transaction[];
   drafts: HistoricalDraft[];
+  /** Weekly matchup results (completed seasons only). */
+  weeks: WeekResult[];
 };
 
 export type LeagueHistory = { seasons: HistoricalSeason[]; issues: Issue[] };
 
 async function draftSlots(draftId: string, client: SleeperClient, force: boolean): Promise<Record<string, number>> {
   try {
-    const d = (await getCache(getConfig().cacheDir).getOrFetch(`draft-${draftId}`, () => client.draft(draftId), { ttlMs: 7 * 24 * HOUR, force })).data;
+    const d = (await getCache().getOrFetch(`draft-${draftId}`, () => client.draft(draftId), { ttlMs: 7 * 24 * HOUR, force })).data;
     return Object.fromEntries(Object.entries(d.slot_to_roster_id ?? {}).filter(([slot, rid]) => slot !== "" && rid != null)) as Record<string, number>;
   } catch {
     return {};
@@ -58,7 +59,7 @@ export function placementsFromBracket(bracket: { p?: number | null; w?: number |
 }
 
 async function loadSeason(leagueId: string, client: SleeperClient, force: boolean): Promise<HistoricalSeason> {
-  const cache = getCache(getConfig().cacheDir);
+  const cache = getCache();
   const k = (name: string) => `history-${leagueId}-${name}`;
   const league = (await cache.getOrFetch(k("league"), () => client.league(leagueId), { ttlMs: 24 * HOUR, force })).data;
   // A completed season is effectively immutable, so it is cached for a week.
@@ -74,6 +75,17 @@ async function loadSeason(leagueId: string, client: SleeperClient, force: boolea
   const txs = await Promise.all(
     legs.map((w) => cache.getOrFetch(k(`tx-${w}`), () => client.transactions(leagueId, w), { ttlMs: ttl, force }).then((c) => c.data).catch(() => [])),
   );
+  const scored = league.status === "complete" ? Array.from({ length: league.settings.last_scored_leg ?? 17 }, (_, i) => i + 1) : [];
+  const weeks: WeekResult[] = (
+    await Promise.all(
+      scored.map((w) =>
+        cache
+          .getOrFetch(k(`matchups-${w}`), () => client.matchups(leagueId, w), { ttlMs: ttl, force })
+          .then((c): WeekResult => ({ week: w, complete: true, entries: c.data.map(normalizeMatchup) }))
+          .catch(() => null),
+      ),
+    )
+  ).filter((w): w is WeekResult => !!w && w.entries.some((e) => e.points > 0));
   const draftList: HistoricalDraft[] = await Promise.all(
     drafts.data
       .filter((d: SleeperDraft) => d.status === "complete")
@@ -97,6 +109,7 @@ async function loadSeason(leagueId: string, client: SleeperClient, force: boolea
     placements: bracket ? placementsFromBracket(bracket.data) : {},
     transactions: txs.flat().map(normalizeTransaction).filter((t) => t.status === "complete"),
     drafts: draftList,
+    weeks,
   };
 }
 
@@ -137,7 +150,7 @@ export async function loadLeagueHistory(opts: {
 }
 
 async function loadSeasonDraftsOnly(leagueId: string, client: SleeperClient, force: boolean): Promise<HistoricalSeason | null> {
-  const cache = getCache(getConfig().cacheDir);
+  const cache = getCache();
   const league = (await cache.getOrFetch(`league-${leagueId}-league`, () => client.league(leagueId), { ttlMs: 15 * 60_000 })).data;
   const [users, rosters, drafts] = await Promise.all([
     cache.getOrFetch(`league-${leagueId}-users`, () => client.users(leagueId), { ttlMs: HOUR }),
@@ -155,6 +168,7 @@ async function loadSeasonDraftsOnly(leagueId: string, client: SleeperClient, for
     rosterOwner: Object.fromEntries(rosters.data.map((r) => [r.roster_id, r.owner_id])),
     placements: {},
     transactions: [],
+    weeks: [],
     drafts: await Promise.all(
       done.map(async (d) => ({
         draftId: d.draft_id,

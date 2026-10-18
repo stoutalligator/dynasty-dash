@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { Suspense } from "react";
-import { Sidebar } from "@/components/shell/sidebar";
-import { LeagueChip, LeagueChipSkeleton, SyncStatus, SyncStatusSkeleton } from "@/components/shell/status";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -11,30 +8,26 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata: Metadata = {
   title: { default: "Dynasty Edge", template: "%s · Dynasty Edge" },
   description: "Dynasty fantasy football intelligence for your Sleeper league.",
+  robots: { index: false, follow: false },
 };
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0a1020" },
+    { media: "(prefers-color-scheme: light)", color: "#f5f7fb" },
+  ],
+};
+
+/** Applies the saved theme before first paint to avoid a flash. */
+const themeScript = `(function(){try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;}catch(e){}})();`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-      <body className="min-h-dvh">
-        <div className="flex min-h-dvh flex-col lg:flex-row">
-          <Sidebar
-            league={
-              <Suspense fallback={<LeagueChipSkeleton />}>
-                <LeagueChip />
-              </Suspense>
-            }
-          />
-          <div className="min-w-0 flex-1">
-            <header className="border-b border-line px-4 py-3 sm:px-6 lg:px-8">
-              <Suspense fallback={<SyncStatusSkeleton />}>
-                <SyncStatus />
-              </Suspense>
-            </header>
-            <main className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">{children}</main>
-          </div>
-        </div>
-      </body>
+    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className="min-h-dvh">{children}</body>
     </html>
   );
 }

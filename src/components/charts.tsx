@@ -2,13 +2,14 @@
 
 import { CartesianGrid, Label, Line, LineChart, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
 
-/* Chart tokens: validated series colors on the dark surface; text never wears series color. */
+/* Chart tokens resolve per theme (validated series colors); text never wears series color. */
 const C = {
-  series1: "#3987e5",
-  neutral: "#7486a3",
-  grid: "#233150",
-  axis: "#7486a3",
-  surface: "#121a2b",
+  series1: "var(--series-1)",
+  neutral: "var(--chart-neutral)",
+  grid: "var(--chart-grid)",
+  axis: "var(--ink-3)",
+  surface: "var(--surface)",
+  label: "var(--chart-label)",
 };
 
 function TipBox({ children }: { children: React.ReactNode }) {
@@ -89,7 +90,7 @@ export function AgeValueChart({ data }: { data: AgeValuePoint[] }) {
             stroke={C.surface}
             strokeWidth={2}
             isAnimationActive={false}
-            label={{ dataKey: "name", position: "top", fill: "#e8edf6", fontSize: 11, offset: 10 }}
+            label={{ dataKey: "name", position: "top", fill: C.label, fontSize: 11, offset: 10 }}
           />
         </ScatterChart>
       </ResponsiveContainer>

@@ -78,9 +78,9 @@ export const STRATEGY_TEXT: Record<Strategy, string> = { contender: "Contender",
 
 export function StrategyBadge({ strategy, size = "sm" }: { strategy: Strategy; size?: "sm" | "md" }) {
   const cls = {
-    contender: "text-[#5fe0b0] bg-contender/15 ring-contender/40",
-    retool: "text-[#8ab8f2] bg-retool/15 ring-retool/40",
-    rebuild: "text-[#f09a76] bg-rebuild/15 ring-rebuild/40",
+    contender: "text-contender-ink bg-contender/15 ring-contender/40",
+    retool: "text-retool-ink bg-retool/15 ring-retool/40",
+    rebuild: "text-rebuild-ink bg-rebuild/15 ring-rebuild/40",
   }[strategy];
   return (
     <span className={clsx("inline-flex items-center gap-1.5 rounded-md font-semibold uppercase tracking-wide ring-1 ring-inset", cls, size === "md" ? "px-2.5 py-1 text-xs" : "px-1.5 py-0.5 text-[10px]")}>

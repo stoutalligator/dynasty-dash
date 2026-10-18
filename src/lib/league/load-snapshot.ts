@@ -6,7 +6,7 @@ import { logger } from "@/lib/log";
 import { mapTeams } from "@/lib/players/map-players";
 import { normalizePlayerDb } from "@/lib/players/normalize";
 import { createSleeperClient, type SleeperClient } from "@/lib/sleeper/client";
-import type { Issue, LeagueSnapshot, PlayerDb, SourceFreshness, Verification, WeekResult } from "./models";
+import type { Issue, LeagueSnapshot, PlayerDb, ScheduledWeek, SourceFreshness, Verification, WeekResult } from "./models";
 import { normalizeLeague, normalizeMatchup, normalizeTransaction } from "./normalize";
 import { resolvePickOwnership } from "./picks";
 
@@ -43,15 +43,19 @@ function freshness(c: Cached<unknown>): SourceFreshness {
 export async function getPlayerDb(opts: { force?: boolean; config?: AppConfig; client?: SleeperClient } = {}) {
   const config = opts.config ?? getConfig();
   const client = opts.client ?? createSleeperClient();
-  const cache = getCache(config.cacheDir);
+  const cache = getCache();
   return cache.getOrFetch<PlayerDb>(
     "players-nfl",
     async () => {
+      // Keep the raw response for local debugging only (it is ~15 MB).
+      const keepRaw = config.storage.cache.kind === "file" && !process.env.VERCEL;
       const raw = await client.players({
-        onRaw: async (body) => {
-          await fs.mkdir(path.join(config.cacheDir, "raw"), { recursive: true });
-          await fs.writeFile(path.join(config.cacheDir, "raw", "players-nfl.json"), JSON.stringify(body));
-        },
+        onRaw: keepRaw
+          ? async (body) => {
+              await fs.mkdir(path.join(config.cacheDir, "raw"), { recursive: true });
+              await fs.writeFile(path.join(config.cacheDir, "raw", "players-nfl.json"), JSON.stringify(body));
+            }
+          : undefined,
       });
       return normalizePlayerDb(raw);
     },
@@ -69,7 +73,7 @@ let memo: { key: string; snapshot: LeagueSnapshot } | undefined;
 export async function loadLeagueSnapshot(opts: LoadOptions = {}): Promise<LeagueSnapshot> {
   const config = opts.config ?? getConfig();
   const client = opts.client ?? createSleeperClient();
-  const cache = getCache(config.cacheDir);
+  const cache = getCache();
   const refresh = opts.refresh ?? "none";
   const force = refresh !== "none";
   const id = config.leagueId;
@@ -135,6 +139,32 @@ export async function loadLeagueSnapshot(opts: LoadOptions = {}): Promise<League
   }
   weeks.sort((a, b) => a.week - b.week);
 
+  // Remaining regular-season pairings (the current, in-progress week included) for the season simulation.
+  const playoffStart = league.playoffWeekStart ?? 15;
+  const scheduleWeeks = Array.from({ length: Math.max(0, playoffStart - Math.max(lastScored + 1, 1)) }, (_, i) => Math.max(lastScored + 1, 1) + i);
+  const schedResults = await Promise.allSettled(
+    scheduleWeeks.map((w) =>
+      cache
+        .getOrFetch(k(`matchups-${w}`), () => client.matchups(id, w), { ttlMs: w === currentWeek ? TTL.currentWeek : TTL.pastWeek, force })
+        .then((c) => ({ w, data: c.data })),
+    ),
+  );
+  const schedule: ScheduledWeek[] = [];
+  for (const r of schedResults) {
+    if (r.status === "rejected") {
+      issues.push({ level: "info", code: "schedule-unavailable", message: `Some future matchups could not be loaded: ${String(r.reason)}` });
+      continue;
+    }
+    const byMatch = new Map<number, number[]>();
+    for (const m of r.value.data) {
+      if (m.matchup_id == null) continue;
+      byMatch.set(m.matchup_id, [...(byMatch.get(m.matchup_id) ?? []), m.roster_id]);
+    }
+    const pairs = [...byMatch.values()].filter((p) => p.length === 2).map((p) => [p[0], p[1]] as [number, number]);
+    if (pairs.length) schedule.push({ week: r.value.w, pairs });
+  }
+  schedule.sort((a, b) => a.week - b.week);
+
   const { verification, myRosterId } = verify(config, league.name, rostersC.data.map((r) => r.roster_id), usersC.data, rostersC.data);
   if (verification.myRosterId == null) {
     issues.push({ level: "error", code: "my-team-unverified", message: verification.notes.join(" ") || "Could not identify your team." });
@@ -173,6 +203,7 @@ export async function loadLeagueSnapshot(opts: LoadOptions = {}): Promise<League
     pickSeasons: seasons,
     transactions,
     weeks,
+    schedule,
     players: playersC.data,
     freshness: fresh,
     issues,

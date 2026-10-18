@@ -1,6 +1,5 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import { z } from "zod";
+import { getConfig } from "@/lib/config";
 
 export const strategySchema = z.enum(["contender", "retool", "rebuild"]);
 export type Strategy = z.infer<typeof strategySchema>;
@@ -26,23 +25,23 @@ export const prefsSchema = z.object({
 });
 export type Prefs = z.infer<typeof prefsSchema>;
 
-/** User preferences persisted as local JSON (gitignored). Swap for a database when multi-user. */
-const file = () => path.resolve(/*turbopackIgnore: true*/ process.cwd(), "data", "user-prefs.json");
+const KEY = "user-prefs";
 
+/** User preferences, persisted in the configured data store (local file, Neon Postgres or Upstash). */
 export async function readPrefs(): Promise<Prefs> {
   try {
-    const parsed = prefsSchema.safeParse(JSON.parse(await fs.readFile(file(), "utf8")));
+    const entry = await getConfig().storage.data.read<unknown>(KEY);
+    const parsed = prefsSchema.safeParse(entry?.data);
     if (parsed.success) return parsed.data;
   } catch {
-    // Missing or unreadable file: fall through to defaults.
+    // Missing or unreadable: fall through to defaults.
   }
   return prefsSchema.parse({});
 }
 
 export async function writePrefs(prefs: Prefs): Promise<Prefs> {
   const valid = prefsSchema.parse(prefs);
-  await fs.mkdir(path.dirname(file()), { recursive: true });
-  await fs.writeFile(file(), JSON.stringify(valid, null, 2));
+  await getConfig().storage.data.write(KEY, { key: KEY, fetchedAt: new Date().toISOString(), data: valid });
   return valid;
 }
 

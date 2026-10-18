@@ -12,7 +12,7 @@ import { getLeague } from "@/lib/server/data";
 export const metadata: Metadata = { title: "History" };
 
 /** Sequential blue steps for the partner matrix (validated ramp; lighter = more trades). */
-const RAMP = ["#172238", "#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4"];
+const RAMP = ["var(--surface-3)", "#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4"];
 
 async function HistoryContent() {
   const { model } = await getLeague();
@@ -125,7 +125,7 @@ async function HistoryContent() {
                         <td key={c.ownerId} className="p-0.5">
                           <div
                             className="flex size-8 items-center justify-center rounded"
-                            style={{ background: n == null ? "transparent" : RAMP[step], color: step >= 4 ? "#0a1020" : "#e8edf6" }}
+                            style={{ background: n == null ? "transparent" : RAMP[step], color: step === 0 ? "var(--ink-3)" : step >= 4 ? "#0a1020" : "#ffffff" }}
                             title={n == null ? undefined : `${r.name} ↔ ${c.name}: ${n} trade${n === 1 ? "" : "s"}`}
                           >
                             {n == null ? "·" : n || ""}
