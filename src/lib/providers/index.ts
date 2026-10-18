@@ -31,7 +31,7 @@ export async function loadExternalValuations(
   if (!provider) {
     return { set: null, status: { configured: config.valuationProvider, active: null, fetchedAt: null, stale: false, error: null } };
   }
-  const key = `valuations-${provider.id}-${ctx.superflex ? "sf" : "1qb"}-${ctx.teams}-${ctx.receptionPoints}`;
+  const key = `valuations-${provider.id}-${ctx.dynasty === false ? "redraft" : "dynasty"}-${ctx.superflex ? "sf" : "1qb"}-${ctx.teams}-${ctx.receptionPoints}`;
   try {
     const cached = await getCache().getOrFetch(key, () => provider.fetch(ctx), {
       ttlMs: 12 * 3600_000,

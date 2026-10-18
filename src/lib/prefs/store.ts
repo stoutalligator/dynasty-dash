@@ -25,12 +25,16 @@ export const prefsSchema = z.object({
 });
 export type Prefs = z.infer<typeof prefsSchema>;
 
-const KEY = "user-prefs";
+const key = (leagueId: string) => `prefs-${leagueId}`;
+/** Pre-multi-league key; read once as a fallback for the env default league so old settings carry over. */
+const LEGACY_KEY = "user-prefs";
 
-/** User preferences, persisted in the configured data store (local file, Neon Postgres or Upstash). */
-export async function readPrefs(): Promise<Prefs> {
+/** Per-league user preferences, persisted in the configured data store (local file, Neon Postgres or Upstash). */
+export async function readPrefs(leagueId: string): Promise<Prefs> {
+  const store = getConfig().storage.data;
   try {
-    const entry = await getConfig().storage.data.read<unknown>(KEY);
+    let entry = await store.read<unknown>(key(leagueId));
+    if (!entry && leagueId === getConfig().leagueId) entry = await store.read<unknown>(LEGACY_KEY);
     const parsed = prefsSchema.safeParse(entry?.data);
     if (parsed.success) return parsed.data;
   } catch {
@@ -39,12 +43,12 @@ export async function readPrefs(): Promise<Prefs> {
   return prefsSchema.parse({});
 }
 
-export async function writePrefs(prefs: Prefs): Promise<Prefs> {
+export async function writePrefs(leagueId: string, prefs: Prefs): Promise<Prefs> {
   const valid = prefsSchema.parse(prefs);
-  await getConfig().storage.data.write(KEY, { key: KEY, fetchedAt: new Date().toISOString(), data: valid });
+  await getConfig().storage.data.write(key(leagueId), { key: key(leagueId), fetchedAt: new Date().toISOString(), data: valid });
   return valid;
 }
 
-export async function updatePrefs(mutate: (p: Prefs) => Prefs): Promise<Prefs> {
-  return writePrefs(mutate(await readPrefs()));
+export async function updatePrefs(leagueId: string, mutate: (p: Prefs) => Prefs): Promise<Prefs> {
+  return writePrefs(leagueId, mutate(await readPrefs(leagueId)));
 }

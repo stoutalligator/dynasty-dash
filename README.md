@@ -10,7 +10,7 @@
 - **Simulates the rest of the season** to estimate every team's playoff and title odds, and shows how each trade would change yours.
 - **Sends a weekly digest** to Discord, Slack or your phone.
 
-It is built for one league (Monson Dynasty Squad), but nothing is hardcoded to it. Point `SLEEPER_LEAGUE_ID` at another Sleeper league and the format, scoring, roster slots, baselines and history all come from that league's live data.
+On first visit you choose a league: enter your Sleeper username and pick from your leagues, or paste any league ID. Your team is recognised from your Sleeper account. You can switch between leagues at any time from the sidebar, and each league keeps its own preferences, saved trades and digest. Nothing is hardcoded to one league: format, scoring, roster slots, baselines and history all come from the chosen league's live data.
 
 ## Quick start
 
@@ -18,9 +18,9 @@ Requires Node.js 20+.
 
 ```bash
 npm install
-cp .env.example .env          # league id + your roster are pre-filled
+cp .env.example .env          # optional defaults; the league is chosen in the app
 npm run league-audit          # fetch + map the league, write data/league-audit.json
-npm run dev                   # http://localhost:3000
+npm run dev                   # http://localhost:3000 → choose your league
 ```
 
 No Sleeper account, API key, database or paid service is needed locally: data is cached in `.cache/` and preferences in `data/`. The first page load downloads the player database, this season's weekly stats and projections, and prior seasons' history (about 10–20 s). Later loads come from the cache.
@@ -33,8 +33,6 @@ No Sleeper account, API key, database or paid service is needed locally: data is
 
    | Variable | Value |
    |---|---|
-   | `SLEEPER_LEAGUE_ID` | `1322942286111207424` |
-   | `MY_ROSTER_ID` / `EXPECTED_TEAM_NAME` | `1` / `Fiester Famine` |
    | `APP_PASSWORD` | A password for the site (8+ characters). Without it the site is public. |
    | `CRON_SECRET` | A long random string. Vercel Cron sends it automatically. |
    | `DATABASE_URL` | Set by the Neon integration. |
@@ -42,7 +40,8 @@ No Sleeper account, API key, database or paid service is needed locally: data is
    | `NTFY_TOPIC` *(optional)* | An unguessable ntfy.sh topic for phone push notifications. |
 
 4. **Deploy.** The table is created on first use. To check it from your machine, put the same `DATABASE_URL` in `.env` and run `npm run db:setup`.
-5. **Warm the cache** once, so the first visit is fast:
+5. **Open the site and choose your league** (Sleeper username → pick the league). The choice is saved in the database.
+6. **Warm the cache** once, so the next visit is fast:
    `curl -H "Authorization: Bearer <CRON_SECRET>" https://<your-app>.vercel.app/api/cron/refresh`
 
 Scheduled jobs come from `vercel.json` (times are UTC):
@@ -60,9 +59,8 @@ What happens on Vercel without a database: the app still works using temporary s
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `SLEEPER_LEAGUE_ID` | required | Public Sleeper league id (not a secret). |
-| `MY_ROSTER_ID` | — | Your roster id. Verified against the live league; a mismatch is reported, never assumed. |
-| `EXPECTED_TEAM_NAME` | — | Cross-check for your team name (also used to find your roster if no id is set). |
+| `SLEEPER_LEAGUE_ID` | — | Optional default league, used only until a league is chosen in the app (`/setup`). |
+| `MY_ROSTER_ID` / `EXPECTED_TEAM_NAME` | — | Optional: identify your team in that default league. With in-app setup your team comes from your Sleeper account instead. |
 | `VALUATION_PROVIDER` | `fantasycalc` | `fantasycalc` (free third-party dynasty values) or `none` (internal estimate only). |
 | `FUTURE_PICK_SEASONS` | `3` | How many upcoming rookie drafts to show pick ownership for. |
 | `SIM_RUNS` | `10000` | Simulated seasons for playoff/title odds. Each trade proposal uses 3,000 runs. |
@@ -83,7 +81,7 @@ What happens on Vercel without a database: the app still works using temporary s
 |---|---|
 | `npm run dev` | Dev server. |
 | `npm run build && npm start` | Production build / server. |
-| `npm run league-audit` | League audit → `data/league-audit.json` (league metadata, managers, rosters with mapped players, pick ownership, freshness, issues). `-- --refresh` refetches league data; `-- --refresh-all` also re-downloads the player database. |
+| `npm run league-audit` | Audit of the active league (in-app choice, else env default) → `data/league-audit.json` (league metadata, managers, rosters with mapped players, pick ownership, freshness, issues). `-- --refresh` refetches league data; `-- --refresh-all` also re-downloads the player database. |
 | `npm run db:setup` | Checks the configured storage and creates the Postgres table. |
 | `npm run inspect` | One-screen summary of the analysis model: grades, strategies, lineups, free-agent pool and history. |
 | `npm test` | Vitest unit + integration tests. |
@@ -131,6 +129,7 @@ Sleeper is the source of truth for league settings, rosters, ownership, matchups
 | **Analytics** | Weekly score vs. league median, age vs. asset value, lineup efficiency, positional heatmap, weekly scores, production left on benches, and a **model check** against past seasons. |
 | **History** | Champions and final standings for every season, manager trading profiles, trade ledger valued with hindsight (traded picks resolved to the players drafted with them), and a who-trades-with-whom matrix. |
 | **Digest** | The latest weekly digest, previous weeks, and "build / send now" buttons. |
+| **Choose league** (`/setup`) | Find your leagues by Sleeper username (dynasty first), or open any league by ID and pick your team (or view only). Recent leagues are one tap away; the sidebar's league chip opens it. |
 | **Settings** | Config verification, storage / sign-in / cron / digest status, per-source freshness, refresh, valuation provider, appearance, strategy overrides for every team, data issues, sign out. |
 
 **Also throughout the app:**
@@ -145,6 +144,13 @@ The UI is dark-themed and responsive. Every page has been checked at a 390 px ph
 ## How the analysis works
 
 Every number is either actual data (Sleeper), third-party data (labeled with its source), or our own estimate (labeled). The heuristics are simple and testable.
+
+### Leagues and your team
+
+- **Choosing a league.** The choice is stored server-side (with a recent-leagues list), so scheduled jobs use it too.
+- **Your team.** Recognised from your Sleeper account (owner or co-owner). If you set up by league ID, it's the team you picked. If your account isn't in a league, team-specific views are hidden and the league-wide analysis still works.
+- **Per-league data.** Preferences, overrides, saved trades and digests are stored per league.
+- **Redraft leagues.** Redraft and keeper leagues use FantasyCalc's redraft values; dynasty leagues use dynasty values.
 
 ### Rosters and teams
 

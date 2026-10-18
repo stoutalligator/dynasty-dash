@@ -1,5 +1,6 @@
 import { loadLeagueHistory } from "@/lib/history/load";
-import { loadLeagueSnapshot, type RefreshScope } from "@/lib/league/load-snapshot";
+import { resolveActiveLeague } from "@/lib/league/active";
+import { loadLeagueSnapshot, NoLeagueSelectedError, type RefreshScope } from "@/lib/league/load-snapshot";
 import type { LeagueSnapshot } from "@/lib/league/models";
 import { logger } from "@/lib/log";
 import { readPrefs, type Prefs } from "@/lib/prefs/store";
@@ -13,7 +14,7 @@ import type { LeagueModel } from "./types";
 
 const log = logger("model");
 
-let memo: { key: string; snapshot: LeagueSnapshot; model: LeagueModel } | undefined;
+const memo = new Map<string, { key: string; snapshot: LeagueSnapshot; model: LeagueModel }>();
 
 /**
  * Server-only entry point used by pages and server actions: live (cached) Sleeper data + weekly
@@ -21,7 +22,9 @@ let memo: { key: string; snapshot: LeagueSnapshot; model: LeagueModel } | undefi
  * Rebuilt whenever any input changes. Optional sources degrade gracefully when unavailable.
  */
 export async function loadLeagueModel(opts: { refresh?: RefreshScope } = {}): Promise<{ model: LeagueModel; snapshot: LeagueSnapshot; prefs: Prefs }> {
-  const snapshot = await loadLeagueSnapshot({ refresh: opts.refresh });
+  const active = await resolveActiveLeague();
+  if (!active) throw new NoLeagueSelectedError();
+  const snapshot = await loadLeagueSnapshot({ refresh: opts.refresh, active });
   const { league } = snapshot;
   const force = opts.refresh != null && opts.refresh !== "none";
   const lastScored = league.lastScoredWeek ?? 0;
@@ -33,8 +36,11 @@ export async function loadLeagueModel(opts: { refresh?: RefreshScope } = {}): Pr
   const projectionWeeks = inSeason ? Array.from({ length: lastWeek }, (_, i) => i + 1) : [];
 
   const [{ set, status }, prefs, stats, trending, history] = await Promise.all([
-    loadExternalValuations({ superflex: league.format.superflex, receptionPoints: league.format.receptionPoints, teams: snapshot.teams.length }, { force: opts.refresh === "all" }),
-    readPrefs(),
+    loadExternalValuations(
+      { superflex: league.format.superflex, receptionPoints: league.format.receptionPoints, teams: snapshot.teams.length, dynasty: league.leagueType !== 0 },
+      { force: opts.refresh === "all" },
+    ),
+    readPrefs(active.leagueId),
     loadStatsBundle({ season: league.season, completedWeeks, projectionWeeks, upcomingFrom: league.currentWeek ?? undefined, scoring: league.scoringSettings, force }).catch((err) => {
       log.warn("stats bundle failed", { error: String(err) });
       return null;
@@ -54,7 +60,8 @@ export async function loadLeagueModel(opts: { refresh?: RefreshScope } = {}): Pr
     history?.seasons.map((s) => s.season) ?? null,
     prefs.strategyOverrides,
   ]);
-  if (memo && memo.snapshot === snapshot && memo.key === key) return { model: memo.model, snapshot, prefs };
+  const prev = memo.get(active.leagueId);
+  if (prev && prev.snapshot === snapshot && prev.key === key) return { model: prev.model, snapshot, prefs };
 
   const model = buildLeagueModel({ snapshot, external: set, providerStatus: status, prefs, stats, trending, history });
   try {
@@ -86,6 +93,6 @@ export async function loadLeagueModel(opts: { refresh?: RefreshScope } = {}): Pr
   if (!trending) extra.push({ level: "info", code: "trending-unavailable", message: "Sleeper trending adds could not be loaded." });
   model.issues = [...model.issues, ...extra];
   if (stats) model.freshness = { ...model.freshness, ...stats.freshness };
-  memo = { key, snapshot, model };
+  memo.set(active.leagueId, { key, snapshot, model });
   return { model, snapshot, prefs };
 }

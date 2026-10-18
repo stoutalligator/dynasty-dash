@@ -46,6 +46,12 @@ export const leagueSchema = z.looseObject({
 });
 export type SleeperLeague = z.infer<typeof leagueSchema>;
 
+/** Documented: /user/{username or user_id} (null when the user does not exist). */
+export const sleeperAccountSchema = z
+  .looseObject({ user_id: str, username: str.nullish(), display_name: str, avatar: str.nullish() })
+  .nullable();
+export type SleeperAccount = NonNullable<z.infer<typeof sleeperAccountSchema>>;
+
 export const userSchema = z.looseObject({
   user_id: str,
   display_name: str,

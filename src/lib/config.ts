@@ -3,9 +3,11 @@ import { z } from "zod";
 import { createStores, type Stores } from "@/lib/store";
 
 const envSchema = z.object({
+  /** Optional default league; normally chosen in the app at /setup. */
   SLEEPER_LEAGUE_ID: z
     .string()
-    .regex(/^\d+$/, "SLEEPER_LEAGUE_ID must be a numeric Sleeper league id"),
+    .regex(/^\d+$/, "SLEEPER_LEAGUE_ID must be a numeric Sleeper league id")
+    .optional(),
   MY_ROSTER_ID: z.coerce.number().int().positive().optional(),
   EXPECTED_TEAM_NAME: z.string().optional(),
   VALUATION_PROVIDER: z.enum(["fantasycalc", "none"]).default("fantasycalc"),
@@ -31,7 +33,8 @@ const envSchema = z.object({
 });
 
 export type AppConfig = {
-  leagueId: string;
+  /** Fallback league when none has been chosen in the app. */
+  leagueId: string | undefined;
   myRosterId: number | undefined;
   expectedTeamName: string | undefined;
   valuationProvider: "fantasycalc" | "none";
@@ -78,7 +81,8 @@ export function getConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       upstashToken: e.KV_REST_API_TOKEN ?? e.UPSTASH_REDIS_REST_TOKEN,
       cacheDir,
       dataDir,
-      namespace: `dynasty:${e.SLEEPER_LEAGUE_ID}`,
+      // League-specific keys include the league id, so one namespace serves every league.
+      namespace: "dynasty",
       onVercel: !!env.VERCEL,
     }),
     appPassword: e.APP_PASSWORD,

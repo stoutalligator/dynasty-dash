@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 import { Avatar } from "@/components/avatar";
 import { PageSkeleton } from "@/components/page-skeleton";
@@ -37,17 +38,19 @@ async function SettingsContent() {
       <PageTitle title="Settings & data" subtitle="Configuration, data freshness, valuation source, and strategy overrides" />
       <div className="grid gap-5 xl:grid-cols-2">
         <Card>
-          <CardHeader title="League configuration" subtitle="Set in .env; verified against the live Sleeper API" />
+          <CardHeader
+            title="League"
+            subtitle={v.source === "app" ? "Chosen in the app; verified against the live Sleeper API" : "From environment defaults; verified against the live Sleeper API"}
+            action={<Link href="/setup" className="rounded-lg border border-line-strong bg-surface-2 px-3 py-1.5 text-xs text-ink-2 hover:text-ink">Change league</Link>}
+          />
           <dl className="divide-y divide-line/60 px-4 pb-3 text-sm">
             {[
-              ["SLEEPER_LEAGUE_ID", v.configuredLeagueId],
-              ["League found", v.leagueFound ? `Yes · ${model.league.name}` : "No"],
-              ["MY_ROSTER_ID", v.expectedRosterId ?? "not set"],
-              ["EXPECTED_TEAM_NAME", v.expectedTeamName ?? "not set"],
-              ["Verified team", v.myRosterId != null ? `${v.myTeamName} (roster ${v.myRosterId})` : "Not verified"],
+              ["League", v.leagueFound ? `${model.league.name} (${v.configuredLeagueId})` : v.configuredLeagueId],
+              ["Identified by", v.username ? `Sleeper account @${v.username}` : v.expectedRosterId != null ? `Team pick (roster ${v.expectedRosterId})` : v.expectedTeamName ? `Team name "${v.expectedTeamName}"` : "Not set"],
+              ["Your team", v.myRosterId != null ? `${v.myTeamName} (roster ${v.myRosterId})` : "None (view only)"],
             ].map(([k, val2]) => (
-              <div key={String(k)} className="grid grid-cols-[11rem_1fr] gap-3 py-2">
-                <dt className="font-mono text-xs text-ink-3">{k}</dt>
+              <div key={String(k)} className="grid grid-cols-[8rem_1fr] gap-3 py-2">
+                <dt className="text-xs text-ink-3">{k}</dt>
                 <dd className="text-ink">{String(val2)}</dd>
               </div>
             ))}

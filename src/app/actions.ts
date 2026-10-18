@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { loadLeagueModel } from "@/lib/analysis/load-model";
+import { resolveActiveLeague } from "@/lib/league/active";
 import { logger } from "@/lib/log";
 import { savedProposalSchema, strategySchema, updatePrefs } from "@/lib/prefs/store";
 import { assetIndex } from "@/lib/trades/assets";
@@ -13,6 +14,12 @@ import { annotateThreeTeamOdds, annotateTradeOdds } from "@/lib/server/odds";
 import { runDigest } from "@/lib/digest/run";
 
 const log = logger("actions");
+
+async function activeLeagueId(): Promise<string> {
+  const a = await resolveActiveLeague();
+  if (!a) throw new Error("No league selected.");
+  return a.leagueId;
+}
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 const fail = (err: unknown): { ok: false; error: string } => ({ ok: false, error: err instanceof Error ? err.message : String(err) });
@@ -32,7 +39,7 @@ export async function refreshData(scope: "league" | "all"): Promise<Result<{ syn
 export async function setStrategyOverride(rosterId: number, strategy: string | null): Promise<Result<null>> {
   try {
     const s = strategy == null ? null : strategySchema.parse(strategy);
-    await updatePrefs((p) => {
+    await updatePrefs(await activeLeagueId(), (p) => {
       const next = { ...p.strategyOverrides };
       if (s) next[String(rosterId)] = s;
       else delete next[String(rosterId)];
@@ -52,7 +59,7 @@ export async function toggleAssetFlag(list: string, assetId: string): Promise<Re
   try {
     const l = listSchema.parse(list);
     const id = z.string().regex(/^(player|pick):/).parse(assetId);
-    const prefs = await updatePrefs((p) => {
+    const prefs = await updatePrefs(await activeLeagueId(), (p) => {
       const on = p[l].includes(id);
       const strip = (xs: string[]) => xs.filter((x) => x !== id);
       const next = { ...p, untouchables: strip(p.untouchables), tradeBlock: strip(p.tradeBlock), targets: strip(p.targets) };
@@ -111,7 +118,7 @@ export async function evaluateCustomTrade(input: unknown): Promise<Result<TradeE
 export async function saveProposal(input: { partnerRosterId: number; myAssets: string[]; theirAssets: string[]; note?: string }): Promise<Result<null>> {
   try {
     const proposal = savedProposalSchema.parse({ ...input, id: crypto.randomUUID(), savedAt: new Date().toISOString() });
-    await updatePrefs((p) => ({ ...p, savedProposals: [proposal, ...p.savedProposals].slice(0, 50) }));
+    await updatePrefs(await activeLeagueId(), (p) => ({ ...p, savedProposals: [proposal, ...p.savedProposals].slice(0, 50) }));
     refresh();
     return { ok: true, data: null };
   } catch (err) {
@@ -121,7 +128,7 @@ export async function saveProposal(input: { partnerRosterId: number; myAssets: s
 
 export async function deleteProposal(id: string): Promise<Result<null>> {
   try {
-    await updatePrefs((p) => ({ ...p, savedProposals: p.savedProposals.filter((x) => x.id !== id) }));
+    await updatePrefs(await activeLeagueId(), (p) => ({ ...p, savedProposals: p.savedProposals.filter((x) => x.id !== id) }));
     refresh();
     return { ok: true, data: null };
   } catch (err) {

@@ -1,4 +1,4 @@
-import { AlertTriangle, CircleCheck } from "lucide-react";
+import { AlertTriangle, ChevronsUpDown, CircleCheck } from "lucide-react";
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
 import { Skeleton } from "@/components/ui";
@@ -11,15 +11,20 @@ export async function LeagueChip() {
   const { model } = await getLeague();
   const l = model.league;
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-line bg-surface-2/60 px-2.5 py-2">
+    <Link
+      href="/setup"
+      title="Switch league"
+      className="group flex items-center gap-2.5 rounded-lg border border-line bg-surface-2/60 px-2.5 py-2 transition hover:border-accent/40"
+    >
       <Avatar src={l.avatarUrl} name={l.name} size={32} />
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-semibold text-ink">{l.name}</div>
         <div className="truncate text-[11px] text-ink-3">
           {l.season} · {l.totalRosters} Teams · {l.format.superflex ? "Superflex" : "1QB"}
         </div>
       </div>
-    </div>
+      <ChevronsUpDown aria-label="Switch league" className="size-4 shrink-0 text-ink-3 group-hover:text-ink-2" />
+    </Link>
   );
 }
 

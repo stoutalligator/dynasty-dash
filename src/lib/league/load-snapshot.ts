@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { getCache, type Cached } from "@/lib/cache/file-cache";
 import { getConfig, type AppConfig } from "@/lib/config";
+import { resolveActiveLeague, type ActiveLeague } from "./active";
 import { logger } from "@/lib/log";
 import { mapTeams } from "@/lib/players/map-players";
 import { normalizePlayerDb } from "@/lib/players/normalize";
@@ -33,7 +34,17 @@ export type LoadOptions = {
   refresh?: RefreshScope;
   config?: AppConfig;
   client?: SleeperClient;
+  /** League to load; defaults to the active league (in-app selection, then env). */
+  active?: ActiveLeague;
 };
+
+/** Thrown when no league has been chosen yet; pages redirect to /setup. */
+export class NoLeagueSelectedError extends Error {
+  constructor() {
+    super("No league selected. Choose your Sleeper league at /setup.");
+    this.name = "NoLeagueSelectedError";
+  }
+}
 
 function freshness(c: Cached<unknown>): SourceFreshness {
   return { fetchedAt: c.fetchedAt, source: c.source, stale: c.stale, ...(c.error ? { error: c.error } : {}) };
@@ -63,7 +74,7 @@ export async function getPlayerDb(opts: { force?: boolean; config?: AppConfig; c
   );
 }
 
-let memo: { key: string; snapshot: LeagueSnapshot } | undefined;
+const memo = new Map<string, { key: string; snapshot: LeagueSnapshot }>();
 
 /**
  * Load every league source (each with its own cache TTL), normalize it, and assemble a snapshot.
@@ -76,7 +87,9 @@ export async function loadLeagueSnapshot(opts: LoadOptions = {}): Promise<League
   const cache = getCache();
   const refresh = opts.refresh ?? "none";
   const force = refresh !== "none";
-  const id = config.leagueId;
+  const active = opts.active ?? (await resolveActiveLeague());
+  if (!active) throw new NoLeagueSelectedError();
+  const id = active.leagueId;
   const issues: Issue[] = [];
   const fresh: Record<string, SourceFreshness> = {};
 
@@ -165,9 +178,14 @@ export async function loadLeagueSnapshot(opts: LoadOptions = {}): Promise<League
   }
   schedule.sort((a, b) => a.week - b.week);
 
-  const { verification, myRosterId } = verify(config, league.name, rostersC.data.map((r) => r.roster_id), usersC.data, rostersC.data);
+  const { verification, myRosterId } = verify(active, league.name, usersC.data, rostersC.data);
   if (verification.myRosterId == null) {
-    issues.push({ level: "error", code: "my-team-unverified", message: verification.notes.join(" ") || "Could not identify your team." });
+    // Spectating a league you are not in is fine; a misconfigured team is an error.
+    issues.push({
+      level: active.userId ? "info" : "error",
+      code: "my-team-unverified",
+      message: verification.notes.join(" ") || "Could not identify your team.",
+    });
   }
 
   const { teams, issues: mapIssues } = mapTeams({
@@ -212,20 +230,22 @@ export async function loadLeagueSnapshot(opts: LoadOptions = {}): Promise<League
 
   // Reuse the previous snapshot object when no source changed, so downstream memoization holds.
   const key = JSON.stringify([Object.entries(fresh).map(([k, f]) => [k, f.fetchedAt, f.stale]), transactions.length, weeks.map((w) => w.week), issues.length]);
-  if (memo && memo.key === key) return memo.snapshot;
-  memo = { key, snapshot };
+  const prev = memo.get(id);
+  if (prev && prev.key === key) return prev.snapshot;
+  memo.set(id, { key, snapshot });
   log.info("snapshot built", { teams: teams.length, transactions: transactions.length, weeks: weeks.length, issues: issues.length });
   return snapshot;
 }
 
-function verify(
-  config: AppConfig,
+/** Identify "my" team: by Sleeper account (owner or co-owner), else explicit roster id, else team name. */
+export function verify(
+  active: ActiveLeague,
   leagueName: string,
-  rosterIds: number[],
   users: { user_id: string; display_name: string; metadata?: { team_name?: string } | null }[],
-  rosters: { roster_id: number; owner_id: string | null }[],
+  rosters: { roster_id: number; owner_id: string | null; co_owners?: string[] | null }[],
 ): { verification: Verification; myRosterId: number | null } {
   const notes: string[] = [];
+  const rosterIds = rosters.map((r) => r.roster_id);
   const nameOf = (rid: number) => {
     const owner = users.find((u) => u.user_id === rosters.find((r) => r.roster_id === rid)?.owner_id);
     return owner?.metadata?.team_name?.trim() || owner?.display_name || null;
@@ -233,36 +253,46 @@ function verify(
   const norm = (s: string) => s.trim().toLowerCase();
   let myRosterId: number | null = null;
 
-  if (config.myRosterId != null) {
-    if (rosterIds.includes(config.myRosterId)) {
-      myRosterId = config.myRosterId;
+  if (active.userId) {
+    const mine = rosters.find((r) => r.owner_id === active.userId || (r.co_owners ?? []).includes(active.userId!));
+    if (mine) {
+      myRosterId = mine.roster_id;
+      notes.push(`Your team was identified from your Sleeper account${active.username ? ` (@${active.username})` : ""}.`);
+    } else {
+      notes.push(`${active.username ? `@${active.username}` : "Your Sleeper account"} doesn't manage a team in this league, so team-specific views are unavailable (league-wide analysis still works).`);
+    }
+  } else if (active.rosterId != null) {
+    if (rosterIds.includes(active.rosterId)) {
+      myRosterId = active.rosterId;
       const actual = nameOf(myRosterId);
-      if (config.expectedTeamName && actual && norm(actual) !== norm(config.expectedTeamName)) {
-        notes.push(`Roster ${myRosterId} is named "${actual}", not the expected "${config.expectedTeamName}". Using the live name.`);
+      if (active.expectedTeamName && actual && norm(actual) !== norm(active.expectedTeamName)) {
+        notes.push(`Roster ${myRosterId} is named "${actual}", not the expected "${active.expectedTeamName}". Using the live name.`);
       }
     } else {
-      notes.push(`Configured MY_ROSTER_ID ${config.myRosterId} does not exist in this league.`);
+      notes.push(`Roster ${active.rosterId} does not exist in this league.`);
     }
   }
-  if (myRosterId == null && config.expectedTeamName) {
+  if (myRosterId == null && !active.userId && active.expectedTeamName) {
     const match = rosterIds.find((rid) => {
       const n = nameOf(rid);
-      return n != null && norm(n) === norm(config.expectedTeamName!);
+      return n != null && norm(n) === norm(active.expectedTeamName!);
     });
     if (match != null) {
       myRosterId = match;
-      notes.push(`Identified your team by name "${config.expectedTeamName}" (roster ${match}).`);
+      notes.push(`Identified your team by name "${active.expectedTeamName}" (roster ${match}).`);
     } else {
-      notes.push(`No team named "${config.expectedTeamName}" was found.`);
+      notes.push(`No team named "${active.expectedTeamName}" was found.`);
     }
   }
   return {
     myRosterId,
     verification: {
-      configuredLeagueId: config.leagueId,
+      configuredLeagueId: active.leagueId,
+      source: active.source,
+      username: active.username,
       leagueFound: !!leagueName,
-      expectedRosterId: config.myRosterId ?? null,
-      expectedTeamName: config.expectedTeamName ?? null,
+      expectedRosterId: active.rosterId,
+      expectedTeamName: active.expectedTeamName,
       myRosterId,
       myTeamName: myRosterId != null ? nameOf(myRosterId) : null,
       notes,

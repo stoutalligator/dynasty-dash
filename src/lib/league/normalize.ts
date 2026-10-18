@@ -43,6 +43,7 @@ export function normalizeLeague(league: SleeperLeague): LeagueInfo {
     playoffTeams: s.playoff_teams ?? null,
     playoffWeekStart: s.playoff_week_start ?? null,
     tradeDeadline: s.trade_deadline ?? null,
+    leagueType: s.type ?? null,
     waiverBudget: s.waiver_budget ?? null,
     waiverType: typeof s.waiver_type === "number" ? s.waiver_type : null,
     currentWeek: s.leg ?? null,

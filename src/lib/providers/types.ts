@@ -38,7 +38,13 @@ export type ValuationSet = {
   names?: Record<string, string>;
 };
 
-export type ProviderContext = { superflex: boolean; receptionPoints: number; teams: number };
+export type ProviderContext = {
+  superflex: boolean;
+  receptionPoints: number;
+  teams: number;
+  /** Dynasty (long-term) values vs. redraft (this season only). */
+  dynasty?: boolean;
+};
 
 export interface ValuationProvider {
   id: string;

@@ -36,7 +36,7 @@ export function parsePickName(name: string): Omit<PickValuation, "value"> | null
 
 export function buildFantasyCalcUrl(ctx: ProviderContext) {
   const qs = new URLSearchParams({
-    isDynasty: "true",
+    isDynasty: String(ctx.dynasty !== false),
     numQbs: ctx.superflex ? "2" : "1",
     numTeams: String(ctx.teams),
     ppr: String(ctx.receptionPoints),
@@ -73,7 +73,7 @@ export const fantasyCalcProvider: ValuationProvider = {
       providerId: "fantasycalc",
       label: "FantasyCalc",
       kind: "third-party",
-      description: `FantasyCalc dynasty trade values for ${ctx.teams}-team, ${ctx.superflex ? "superflex" : "1QB"}, ${ctx.receptionPoints} PPR leagues. Third-party market data, not official.`,
+      description: `FantasyCalc ${ctx.dynasty === false ? "redraft" : "dynasty"} trade values for ${ctx.teams}-team, ${ctx.superflex ? "superflex" : "1QB"}, ${ctx.receptionPoints} PPR leagues. Third-party market data, not official.`,
       format: ctx,
       players,
       picks,

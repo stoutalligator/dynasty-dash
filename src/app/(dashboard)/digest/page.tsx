@@ -8,13 +8,17 @@ import { Card, CardHeader, Notice, PageTitle } from "@/components/ui";
 import { getConfig } from "@/lib/config";
 import { readDigestHistory, readLatestDigest } from "@/lib/digest/run";
 import { fmtDateTime } from "@/lib/format";
+import { resolveActiveLeague } from "@/lib/league/active";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = { title: "Weekly digest" };
 
 async function DigestContent() {
   await connection();
   const c = getConfig();
-  const [digest, history] = await Promise.all([readLatestDigest(), readDigestHistory()]);
+  const active = await resolveActiveLeague();
+  if (!active) redirect("/setup");
+  const [digest, history] = await Promise.all([readLatestDigest(active.leagueId), readDigestHistory(active.leagueId)]);
   const channels = [c.digestWebhookUrl ? "webhook" : null, c.ntfyTopic ? `ntfy (${c.ntfyTopic})` : null].filter(Boolean);
   return (
     <>

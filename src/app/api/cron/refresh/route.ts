@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { loadLeagueModel } from "@/lib/analysis/load-model";
 import { isAuthorizedCron } from "@/lib/auth";
+import { resolveActiveLeague } from "@/lib/league/active";
 import { defaultTrades } from "@/lib/server/insights";
 
 // Refreshing the player database, stats, projections and history can take a while on a cold cache.
@@ -10,6 +11,7 @@ export const maxDuration = 300;
 export async function GET(request: Request) {
   await connection();
   if (!isAuthorizedCron(request.headers.get("authorization"))) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await resolveActiveLeague())) return Response.json({ ok: true, skipped: "No league selected yet (visit /setup)." });
   const t0 = Date.now();
   const { model, prefs } = await loadLeagueModel({ refresh: "all" });
   const me = model.teams.find((t) => t.team.rosterId === model.myRosterId);

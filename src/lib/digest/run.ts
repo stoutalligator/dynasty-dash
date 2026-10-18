@@ -5,17 +5,17 @@ import { defaultTrades } from "@/lib/server/insights";
 import { buildDigest, digestText, type Digest } from "./build";
 
 const log = logger("digest");
-const LATEST = "digest-latest";
-const HISTORY = "digest-history";
+const LATEST = (leagueId: string) => `digest-latest-${leagueId}`;
+const HISTORY = (leagueId: string) => `digest-history-${leagueId}`;
 
 export type DeliveryResult = { channel: string; ok: boolean; error?: string };
 
-export async function readLatestDigest(): Promise<Digest | null> {
-  return (await getConfig().storage.data.read<Digest>(LATEST))?.data ?? null;
+export async function readLatestDigest(leagueId: string): Promise<Digest | null> {
+  return (await getConfig().storage.data.read<Digest>(LATEST(leagueId)))?.data ?? null;
 }
 
-export async function readDigestHistory(): Promise<Digest[]> {
-  return (await getConfig().storage.data.read<Digest[]>(HISTORY))?.data ?? [];
+export async function readDigestHistory(leagueId: string): Promise<Digest[]> {
+  return (await getConfig().storage.data.read<Digest[]>(HISTORY(leagueId)))?.data ?? [];
 }
 
 /** Post the digest to the configured webhook (Discord/Slack/generic JSON) and/or ntfy topic. */
@@ -56,12 +56,13 @@ export async function runDigest(opts: { deliver: boolean }): Promise<{ digest: D
   const { model, prefs } = await loadLeagueModel({ refresh: "league" });
   const me = model.teams.find((t) => t.team.rosterId === model.myRosterId);
   const trades = me ? defaultTrades(model, prefs, me.strategy.effective, 6) : [];
-  const previous = await readLatestDigest();
+  const id = model.league.id;
+  const previous = await readLatestDigest(id);
   const digest = buildDigest(model, trades, previous?.memory ?? null);
   const now = new Date().toISOString();
-  await store.write(LATEST, { key: LATEST, fetchedAt: now, data: digest });
-  const history = [digest, ...(await readDigestHistory())].slice(0, 12);
-  await store.write(HISTORY, { key: HISTORY, fetchedAt: now, data: history });
+  await store.write(LATEST(id), { key: LATEST(id), fetchedAt: now, data: digest });
+  const history = [digest, ...(await readDigestHistory(id))].slice(0, 12);
+  await store.write(HISTORY(id), { key: HISTORY(id), fetchedAt: now, data: history });
   const delivery = opts.deliver ? await deliverDigest(digest) : [];
   log.info("digest built", { week: digest.week, delivered: delivery.map((d) => `${d.channel}:${d.ok}`) });
   return { digest, delivery };

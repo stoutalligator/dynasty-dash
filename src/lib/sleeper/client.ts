@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { ApiError, fetchJson, type FetchJsonOptions } from "./http";
 import {
   bracketSchema,
@@ -9,6 +10,7 @@ import {
   nflStateSchema,
   playersSchema,
   rostersSchema,
+  sleeperAccountSchema,
   statLinesSchema,
   tradedPicksSchema,
   trendingSchema,
@@ -30,6 +32,10 @@ export function createSleeperClient(opts: FetchJsonOptions = {}, base = SLEEPER_
       return league;
     },
     users: (leagueId: string) => get(`/league/${leagueId}/users`, usersSchema),
+    /** Look up a Sleeper account by username or user id; null when it does not exist. */
+    account: (usernameOrId: string) => get(`/user/${encodeURIComponent(usernameOrId.trim().toLowerCase())}`, sleeperAccountSchema),
+    /** All NFL leagues a user belongs to in a season. */
+    userLeagues: (userId: string, season: string) => get(`/user/${userId}/leagues/nfl/${season}`, z.array(leagueSchema)),
     rosters: (leagueId: string) => get(`/league/${leagueId}/rosters`, rostersSchema),
     tradedPicks: (leagueId: string) => get(`/league/${leagueId}/traded_picks`, tradedPicksSchema),
     drafts: (leagueId: string) => get(`/league/${leagueId}/drafts`, draftsSchema),

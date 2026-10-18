@@ -99,6 +99,8 @@ export type LeagueInfo = {
   playoffTeams: number | null;
   playoffWeekStart: number | null;
   tradeDeadline: number | null;
+  /** Sleeper settings.type: 0 redraft, 1 keeper, 2 dynasty. */
+  leagueType: number | null;
   /** FAAB budget per team (0/null when the league does not use FAAB). */
   waiverBudget: number | null;
   /** Sleeper waiver_type: 0 rolling, 1 reverse standings, 2 FAAB. */
@@ -172,6 +174,10 @@ export type SourceFreshness = {
 
 export type Verification = {
   configuredLeagueId: string;
+  /** Where the league choice came from: chosen in the app, or environment defaults. */
+  source: "app" | "env";
+  /** Sleeper account used to identify "my" team, when set up by username. */
+  username: string | null;
   leagueFound: boolean;
   expectedRosterId: number | null;
   expectedTeamName: string | null;

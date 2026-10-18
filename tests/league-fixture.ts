@@ -80,7 +80,7 @@ export function buildSnapshot(): LeagueSnapshot {
   const picks = [1, 2, 3, 4].flatMap((rid) => [1, 2].map((round) => ({ season: "2027", round, originalRosterId: rid, ownerRosterId: rid, previousOwnerRosterId: null, source: "implied" as const, slot: null })));
   return {
     generatedAt: asOf.toISOString(), league, teams, picks, pickSeasons: ["2027"], transactions: [], weeks, schedule: [{ week: 4, pairs: [[1, 2], [3, 4]] }, { week: 5, pairs: [[1, 3], [2, 4]] }], players,
-    freshness: {}, issues: [], verification: { configuredLeagueId: "L", leagueFound: true, expectedRosterId: 1, expectedTeamName: null, myRosterId: 1, myTeamName: "Team 1", notes: [] },
+    freshness: {}, issues: [], verification: { configuredLeagueId: "L", source: "env", username: null, leagueFound: true, expectedRosterId: 1, expectedTeamName: null, myRosterId: 1, myTeamName: "Team 1", notes: [] },
   };
 }
 
