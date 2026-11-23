@@ -47,7 +47,7 @@ function MoverList({ title, players, empty }: { title: string; players: PlayerVi
               <PosBadge pos={p.position} />
               <span className="min-w-0 flex-1 truncate text-ink">{p.name}</span>
               <span className="tnum text-xs text-ink-3">{p.value != null ? fmtInt(p.value) : "—"}</span>
-              <ValueTrend trend={p.valueTrend30} className="w-14 justify-end" />
+              <ValueTrend trend={p.valueTrend30} />
             </li>
           ))}
         </ul>

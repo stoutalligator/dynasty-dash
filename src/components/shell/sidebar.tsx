@@ -115,7 +115,7 @@ export function Sidebar({ league }: { league: ReactNode }) {
         </div>
       </aside>
 
-      <div className="glass sticky top-0 z-40 flex items-center justify-between border-b border-line px-4 py-2.5 lg:hidden">
+      <div className="glass backdrop-blur-xl backdrop-saturate-150 sticky top-0 z-40 flex items-center justify-between border-b border-line px-4 py-2.5 lg:hidden">
         <Brand />
         <button type="button" onClick={() => setOpen(true)} aria-label="Open navigation" className="rounded-lg p-2 text-ink-2 hover:bg-surface-2">
           <Menu className="size-5" aria-hidden />

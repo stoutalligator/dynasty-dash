@@ -12,9 +12,14 @@ import { STRATEGY_TEXT } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Analytics" };
 
-/** Sequential blue ramp (validated reference steps), dark → light means worse → better on the dark surface. */
-const RAMP = ["#184f95", "#1c5cab", "#256abf", "#2a78d6", "#3987e5", "#5598e7", "#6da7ec", "#86b6ef"];
-const rampFor = (pct: number) => RAMP[Math.min(RAMP.length - 1, Math.max(0, Math.round(pct * (RAMP.length - 1))))];
+/**
+ * Sequential heat: one hue (series blue) mixed into the surface, deeper = stronger. Capped at 52%
+ * so cell text stays in the normal ink color with good contrast in both themes.
+ */
+const heat = (pct: number): React.CSSProperties => ({
+  background: `color-mix(in oklab, var(--series-1) ${Math.round(6 + Math.max(0, Math.min(1, pct)) * 46)}%, var(--surface-2))`,
+  color: "var(--ink)",
+});
 
 async function Analytics() {
   const { model } = await getLeague();
@@ -62,11 +67,11 @@ async function Analytics() {
 
       <div className="grid gap-5 xl:grid-cols-2">
         <Card>
-          <CardHeader title={`${me?.team.teamName ?? "My team"}: weekly score`} subtitle="Blue: your score · gray: league median that week · completed weeks" />
+          <CardHeader title={`${me?.team.teamName ?? "My team"}: weekly score`} subtitle="Completed weeks, vs. the league median that week" />
           <div className="px-2 pb-3">{weekly.length ? <WeeklyScoreChart data={weekly} teamName={me?.team.teamName ?? "My team"} /> : <p className="p-6 text-sm text-ink-3">No scored weeks yet.</p>}</div>
         </Card>
         <Card>
-          <CardHeader title="Roster age vs. asset value" subtitle="Each dot is a team; yours is highlighted" info="Top-left = young and valuable (strong long-term position). Bottom-right = older with less value. Values include picks." />
+          <CardHeader title="Roster age vs. asset value" subtitle="Lines mark the league medians · top-left is young and valuable" info="Top-left = young and valuable (strong long-term position). Bottom-right = older with less value. Values include picks." />
           <div className="px-2 pb-3"><AgeValueChart data={ageValue} /></div>
         </Card>
 
@@ -76,13 +81,18 @@ async function Analytics() {
             subtitle="Points scored (bar) vs. Sleeper's max potential points (track)"
             info="Potential points = what the best possible lineup would have scored each week (Sleeper 'ppts'). The gap is points left on the bench; it includes injuries, byes and late scratches, not only lineup choices."
           />
-          <ul className="space-y-2 px-4 pb-4">
+          <div className="flex items-center gap-4 px-5 pb-2 text-[11px] text-ink-2">
+            <span className="inline-flex items-center gap-1.5"><span className="h-2 w-3.5 rounded-full bg-series-1" />Points scored (you)</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-2 w-3.5 rounded-full bg-[var(--chart-neutral)]" />Others</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-2 w-3.5 rounded-full bg-surface-3" />Potential</span>
+          </div>
+          <ul className="space-y-2.5 px-5 pb-5">
             {efficiency.map(({ t, pf, pp, eff }) => (
               <li key={t.team.rosterId} className="grid grid-cols-[8.5rem_1fr_3rem] items-center gap-3 text-xs">
                 <span className={clsx("truncate", t.team.isMine ? "font-semibold text-ink" : "text-ink-2")}>{t.team.teamName}</span>
-                <div className="relative h-3" title={`${pf.toFixed(1)} of ${pp.toFixed(1)} potential`}>
-                  <div className="absolute inset-y-0 left-0 rounded-r bg-brand-blue/20" style={{ width: `${(pp / maxPP) * 100}%` }} />
-                  <div className={clsx("absolute inset-y-0 left-0 rounded-r", t.team.isMine ? "bg-brand-blue" : "bg-ink-3")} style={{ width: `${(pf / maxPP) * 100}%` }} />
+                <div className="relative h-2" title={`${pf.toFixed(1)} of ${pp.toFixed(1)} potential`}>
+                  <div className="absolute inset-y-0 left-0 rounded-full bg-surface-3" style={{ width: `${(pp / maxPP) * 100}%` }} />
+                  <div className={clsx("animate-grow-x absolute inset-y-0 left-0 rounded-full", t.team.isMine ? "bg-series-1" : "bg-[var(--chart-neutral)]")} style={{ width: `${(pf / maxPP) * 100}%` }} />
                 </div>
                 <span className="tnum text-right text-ink">{Math.round(eff * 100)}%</span>
               </li>
@@ -91,7 +101,7 @@ async function Analytics() {
         </Card>
 
         <Card>
-          <CardHeader title="Positional production ranks" subtitle="Rank of each team's top starters' adj. PPG (1 = best); lighter = stronger" />
+          <CardHeader title="Positional production ranks" subtitle="Rank of each team's top starters' adj. PPG (1 = best); deeper blue = stronger" />
           <div className="overflow-x-auto px-4 pb-4">
             <table className="tnum w-full text-xs">
               <thead>
@@ -109,7 +119,7 @@ async function Analytics() {
                       const pct = (n - r) / (n - 1);
                       return (
                         <td key={p} className="p-0.5">
-                          <div className="rounded py-1 text-center font-semibold" style={{ background: rampFor(pct), color: pct > 0.55 ? "#0a1020" : "#e8edf6" }} title={`${t.positions[p].starterPpg} adj. PPG`}>
+                          <div className="rounded-md py-1 text-center font-semibold" style={heat(pct)} title={`${t.positions[p].starterPpg} adj. PPG`}>
                             {r}
                           </div>
                         </td>
@@ -124,7 +134,7 @@ async function Analytics() {
       </div>
 
       <Card className="mt-5">
-        <CardHeader title="Weekly scores" subtitle="Completed weeks; lighter cells are higher scores. ● = won head-to-head." />
+        <CardHeader title="Weekly scores" subtitle="Completed weeks; deeper blue = higher score. ● = won head-to-head." />
         <div className="overflow-x-auto px-4 pb-4">
           <table className="tnum w-full min-w-[640px] text-xs">
             <thead>
@@ -145,7 +155,7 @@ async function Analytics() {
                       const pct = s && hi > lo ? (s.points - lo) / (hi - lo) : 0;
                       return (
                         <td key={i} className="p-0.5">
-                          <div className="rounded py-1 text-center" style={{ background: rampFor(pct), color: pct > 0.55 ? "#0a1020" : "#e8edf6" }} title={s?.opponentRosterId ? `vs ${nameOf(s.opponentRosterId)}: ${s.points} – ${s.opponentPoints}` : undefined}>
+                          <div className="rounded-md py-1 text-center" style={heat(pct)} title={s?.opponentRosterId ? `vs ${nameOf(s.opponentRosterId)}: ${s.points} – ${s.opponentPoints}` : undefined}>
                             {s ? fmtPts(s.points) : "—"}
                             {s?.won && <span aria-label="won" className="ml-0.5">●</span>}
                           </div>

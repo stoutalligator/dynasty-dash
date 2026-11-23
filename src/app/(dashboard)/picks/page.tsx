@@ -12,6 +12,8 @@ export const metadata: Metadata = { title: "Draft Picks" };
 
 async function Picks() {
   const { model } = await getLeague();
+  /** Short team code for dense cells (full name is in the tooltip). */
+  const initials = (n: string) => n.replace(/[^\p{L}\p{N} ]/gu, "").split(/\s+/).filter(Boolean).slice(0, 3).map((w) => w[0]!.toUpperCase()).join("") || "?";
   const name = (rid: number | null) => (rid == null ? "—" : model.teams.find((t) => t.team.rosterId === rid)?.team.teamName ?? `Roster ${rid}`);
   const rounds = Math.max(1, ...model.teams.flatMap((t) => t.picks.map((p) => p.round)));
   const rows = model.standings.map((rid) => model.teams.find((t) => t.team.rosterId === rid)!);
@@ -30,7 +32,7 @@ async function Picks() {
       <Card>
         <CardHeader
           title="Pick ownership by team"
-          subtitle="Highlighted picks were acquired from another team. Sorted by standings."
+          subtitle="● own pick · chips are picks acquired from that team (hover for details) · — traded away. Sorted by standings."
           action={<SourceTag kind="sleeper" label="Ownership: Sleeper" />}
         />
         {/* Phones: one block per team listing its picks by season. */}
@@ -96,19 +98,23 @@ async function Picks() {
                           {ps.length === 0 ? (
                             <span className="text-xs text-ink-3/60" title="No pick in this round">—</span>
                           ) : (
-                            <div className="flex flex-col items-center gap-0.5">
-                              {ps.map((p) => (
-                                <span
-                                  key={p.assetId}
-                                  title={`${p.season} ${ordinal(p.round)} — original: ${name(p.originalRosterId)}${p.previousOwnerRosterId ? `, previous: ${name(p.previousOwnerRosterId)}` : ""}. ${p.valueNote}`}
-                                  className={clsx(
-                                    "rounded px-1.5 py-0.5 text-[11px]",
-                                    p.originalRosterId === t.team.rosterId ? "bg-surface-2 text-ink-2" : "bg-brand-amber/15 font-medium text-brand-amber ring-1 ring-inset ring-brand-amber/30",
-                                  )}
-                                >
-                                  {p.originalRosterId === t.team.rosterId ? "Own" : name(p.originalRosterId).slice(0, 10)}
-                                </span>
-                              ))}
+                            <div className="flex flex-wrap items-center justify-center gap-1">
+                              {ps.map((p) => {
+                                const own = p.originalRosterId === t.team.rosterId;
+                                const label = `${p.season} ${ordinal(p.round)} — ${own ? "own pick" : `via ${name(p.originalRosterId)}`}${p.previousOwnerRosterId && !own ? ` (from ${name(p.previousOwnerRosterId)})` : ""}. ${p.valueNote}`;
+                                if (own) return <span key={p.assetId} title={label} aria-label={label} className="inline-block size-2 rounded-full bg-ink-3/50" />;
+                                const orig = model.teams.find((x) => x.team.rosterId === p.originalRosterId);
+                                return (
+                                  <span
+                                    key={p.assetId}
+                                    title={label}
+                                    className="inline-flex items-center gap-1 rounded-full bg-brand-amber/12 py-0.5 pr-1.5 pl-0.5 text-[10px] font-semibold text-ink ring-1 ring-inset ring-brand-amber/35"
+                                  >
+                                    <Avatar src={orig?.team.avatarUrl ?? null} name={name(p.originalRosterId)} size={16} />
+                                    {initials(name(p.originalRosterId))}
+                                  </span>
+                                );
+                              })}
                             </div>
                           )}
                         </td>

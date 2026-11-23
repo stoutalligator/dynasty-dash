@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { AlertTriangle, CircleAlert, CircleCheck, Info, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, CircleAlert, CircleCheck, Info } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Confidence, Strategy } from "@/lib/analysis/types";
 import type { InjuryInfo } from "@/lib/league/models";
@@ -186,18 +186,21 @@ export function SourceTag({ kind, label }: { kind: "sleeper" | "third-party" | "
   return <span className={clsx("rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset", cls)}>{text}</span>;
 }
 
-/** 30-day market-value change; hidden when the move is negligible (under 2% of value or 50 points). */
+/** 30-day market-value change as a small ▲/▼ chip; hidden when negligible (under 2% of value or 50 points). */
 export function ValueTrend({ trend, value, className }: { trend: number | null | undefined; value?: number | null; className?: string }) {
   if (trend == null || Math.abs(trend) < Math.max(50, Math.abs(value ?? 0) * 0.02)) return null;
   const up = trend > 0;
-  const Icon = up ? TrendingUp : TrendingDown;
   return (
     <span
       title={`${fmtSignedInt(trend)} market value over the last 30 days`}
-      className={clsx("tnum inline-flex items-center gap-0.5 text-[10px] font-medium", up ? "text-good" : "text-critical", className)}
+      className={clsx(
+        "tnum inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] leading-4 font-semibold",
+        up ? "bg-good/10 text-good" : "bg-critical/10 text-critical",
+        className,
+      )}
     >
-      <Icon aria-hidden className="size-3" />
-      {fmtSignedInt(trend)}
+      <span aria-hidden className="text-[8px]">{up ? "▲" : "▼"}</span>
+      {fmtSignedInt(Math.abs(trend)).replace(/^[+−±]/, "")}
     </span>
   );
 }

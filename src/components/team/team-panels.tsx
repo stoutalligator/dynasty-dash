@@ -32,7 +32,7 @@ export function OddsRing({ value, label, sub, size = 96 }: { value: number; labe
           strokeLinecap="round"
           strokeDasharray={length}
           strokeDashoffset={length * (1 - Math.max(0.01, Math.min(1, value)))}
-          className="animate-ring drop-shadow-[0_0_6px_var(--accent)]"
+          className="animate-ring"
           style={{ ["--ring-length" as string]: `${length}` }}
         />
         <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" className="rotate-90 fill-ink text-[19px] font-semibold tabular-nums" style={{ transformOrigin: "center" }}>
@@ -51,12 +51,10 @@ export function OddsRing({ value, label, sub, size = 96 }: { value: number; labe
 export function TeamHeader({ t, n, odds }: { t: TeamAnalysis; n: number; odds?: { playoffPct: number; titlePct: number; byePct: number } | null }) {
   const pct = (x: number) => (x > 0 && x < 0.0005 ? "<0.1%" : `${(x * 100).toFixed(x < 0.1 ? 1 : 0)}%`);
   return (
-    <div className="surface-card relative mb-5 overflow-hidden rounded-2xl border border-line">
-      <div aria-hidden className="pointer-events-none absolute -top-24 -left-16 size-72 rounded-full bg-accent/10 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -right-10 -bottom-28 size-72 rounded-full bg-brand-purple/10 blur-3xl" />
+    <div className="surface-card hero-surface relative mb-5 overflow-hidden rounded-2xl border border-line">
       <div className="relative flex flex-wrap items-center gap-x-6 gap-y-4 p-5 sm:p-6">
         <div className="flex min-w-0 flex-1 basis-full items-center gap-4 sm:basis-auto">
-          <div className="shrink-0 rounded-full bg-gradient-to-br from-accent to-accent-2 p-[2px] shadow-[0_8px_30px_-10px_var(--accent)]">
+          <div className="shrink-0 rounded-full bg-gradient-to-br from-accent to-accent-2 p-[2px]">
             <div className="rounded-full bg-surface p-[2px]">
               <Avatar src={t.team.avatarUrl} name={t.team.teamName} size={60} />
             </div>
