@@ -21,7 +21,7 @@ export function DigestActions({ canDeliver }: { canDeliver: boolean }) {
         <RefreshCw aria-hidden className="size-4" /> Build now
       </button>
       {canDeliver && (
-        <button type="button" disabled={pending} onClick={() => run(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink disabled:opacity-60">
+        <button type="button" disabled={pending} onClick={() => run(true)} className="inline-flex items-center gap-1.5 btn-primary rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink disabled:opacity-60">
           <Send aria-hidden className="size-4" /> Build &amp; send
         </button>
       )}

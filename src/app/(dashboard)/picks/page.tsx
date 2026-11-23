@@ -1,9 +1,9 @@
 import clsx from "clsx";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
 import { Avatar } from "@/components/avatar";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { PageSuspense } from "@/components/page-suspense";
 import { Card, CardHeader, Notice, PageTitle, SourceTag, StrategyBadge } from "@/components/ui";
 import { fmtInt, ordinal } from "@/lib/format";
 import { getLeague } from "@/lib/server/data";
@@ -166,8 +166,8 @@ async function Picks() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<PageSkeleton tiles={0} />}>
+    <PageSuspense fallback={<PageSkeleton tiles={0} />}>
       <Picks />
-    </Suspense>
+    </PageSuspense>
   );
 }

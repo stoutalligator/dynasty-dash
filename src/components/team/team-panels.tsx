@@ -6,40 +6,116 @@ import { fmtAge, fmtInt, fmtPts, ordinal, record } from "@/lib/format";
 import { Tabs } from "@/components/tabs";
 import { StrategyOverride } from "./strategy-override";
 
-export function TeamHeader({ t, n }: { t: TeamAnalysis; n: number }) {
+/** Circular meter for a probability; the arc draws itself in on mount (CSS only). */
+export function OddsRing({ value, label, sub, size = 96 }: { value: number; label: string; sub?: string; size?: number }) {
+  const stroke = 8;
+  const r = (size - stroke) / 2;
+  const length = 2 * Math.PI * r;
+  const pctText = value > 0 && value < 0.005 ? "<1%" : `${Math.round(value * 100)}%`;
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-4">
-      <Avatar src={t.team.avatarUrl} name={t.team.teamName} size={52} />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="truncate text-2xl font-semibold tracking-tight text-ink">{t.team.teamName}</h1>
-          <StrategyBadge strategy={t.strategy.effective} size="md" />
-          {t.strategy.override && <span className="text-[11px] text-ink-3">manual · model says {t.strategy.inferred}</span>}
-        </div>
-        <p className="mt-1 text-sm text-ink-3">
-          {t.team.manager?.displayName ?? "No manager"} · {record(t.team.wins, t.team.losses, t.team.ties)} · {ordinal(t.standingRank)} of {n} · power #{t.powerRank}
-          {t.team.divisionName && ` · ${t.team.divisionName}`}
-          {t.team.streak && ` · ${t.team.streak} streak`}
-        </p>
+    <div className="flex items-center gap-3">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${label}: ${pctText}`} className="shrink-0 -rotate-90">
+        <defs>
+          <linearGradient id="odds-ring-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="var(--accent)" />
+            <stop offset="100%" stopColor="var(--accent-2)" />
+          </linearGradient>
+        </defs>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--line)" strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="url(#odds-ring-grad)"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={length}
+          strokeDashoffset={length * (1 - Math.max(0.01, Math.min(1, value)))}
+          className="animate-ring drop-shadow-[0_0_6px_var(--accent)]"
+          style={{ ["--ring-length" as string]: `${length}` }}
+        />
+        <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" className="rotate-90 fill-ink text-[19px] font-semibold tabular-nums" style={{ transformOrigin: "center" }}>
+          {pctText}
+        </text>
+      </svg>
+      <div>
+        <div className="label-caps">{label}</div>
+        {sub && <div className="mt-1 text-xs leading-relaxed text-ink-3">{sub}</div>}
       </div>
     </div>
+  );
+}
+
+/** Team hero: identity, strategy and (when the season simulation ran) a playoff-odds ring. */
+export function TeamHeader({ t, n, odds }: { t: TeamAnalysis; n: number; odds?: { playoffPct: number; titlePct: number; byePct: number } | null }) {
+  const pct = (x: number) => (x > 0 && x < 0.0005 ? "<0.1%" : `${(x * 100).toFixed(x < 0.1 ? 1 : 0)}%`);
+  return (
+    <div className="surface-card relative mb-5 overflow-hidden rounded-2xl border border-line">
+      <div aria-hidden className="pointer-events-none absolute -top-24 -left-16 size-72 rounded-full bg-accent/10 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -right-10 -bottom-28 size-72 rounded-full bg-brand-purple/10 blur-3xl" />
+      <div className="relative flex flex-wrap items-center gap-x-6 gap-y-4 p-5 sm:p-6">
+        <div className="flex min-w-0 flex-1 basis-full items-center gap-4 sm:basis-auto">
+          <div className="shrink-0 rounded-full bg-gradient-to-br from-accent to-accent-2 p-[2px] shadow-[0_8px_30px_-10px_var(--accent)]">
+            <div className="rounded-full bg-surface p-[2px]">
+              <Avatar src={t.team.avatarUrl} name={t.team.teamName} size={60} />
+            </div>
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-[22px] leading-tight font-semibold tracking-tight break-words text-ink sm:truncate sm:text-[28px]">{t.team.teamName}</h1>
+              <StrategyBadge strategy={t.strategy.effective} size="md" />
+              {t.strategy.override && <span className="text-[11px] text-ink-3">manual · model says {t.strategy.inferred}</span>}
+            </div>
+            <p className="mt-1 text-sm text-ink-3">
+              {t.team.manager?.displayName ?? "No manager"}
+              {t.team.divisionName && ` · ${t.team.divisionName}`}
+              {t.team.streak && ` · ${t.team.streak} streak`}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <HeroChip label="Record" value={record(t.team.wins, t.team.losses, t.team.ties)} />
+              <HeroChip label="Standing" value={`${ordinal(t.standingRank)} of ${n}`} />
+              <HeroChip label="Power" value={`#${t.powerRank}`} />
+            </div>
+          </div>
+        </div>
+        {odds && (
+          <div className="w-full border-t border-line pt-4 sm:w-auto sm:border-t-0 sm:pt-0">
+            <OddsRing value={odds.playoffPct} label="Playoff odds" sub={`Title ${pct(odds.titlePct)} · bye ${pct(odds.byePct)}`} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HeroChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-baseline gap-1.5 rounded-lg border border-line bg-surface-2/60 px-2.5 py-1 text-xs whitespace-nowrap">
+      <span className="text-ink-3">{label}</span>
+      <span className="tnum font-semibold text-ink">{value}</span>
+    </span>
   );
 }
 
 export function TeamStatTiles({ t, model }: { t: TeamAnalysis; model: LeagueModel }) {
   const n = model.teams.length;
   const odds = model.odds?.teams.find((o) => o.rosterId === t.team.rosterId);
-  const pct = (x: number) => (x > 0 && x < 0.005 ? "<1%" : `${Math.round(x * 100)}%`);
+  const pct = (x: number) => (x > 0 && x < 0.0005 ? "<0.1%" : `${(x * 100).toFixed(x < 0.1 ? 1 : 0)}%`);
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-      <StatTile label="Record" value={record(t.team.wins, t.team.losses, t.team.ties)} sub={`${ordinal(t.standingRank)} in standings`} />
       <StatTile label="Points for" value={fmtPts(t.team.pointsFor)} sub={`Against ${fmtPts(t.team.pointsAgainst)}`} />
       <StatTile label="Potential points" value={fmtPts(t.team.potentialPoints)} sub={t.team.potentialPoints ? `${Math.round((t.team.pointsFor / t.team.potentialPoints) * 100)}% lineup efficiency` : "Not provided"} />
       <StatTile label="Best lineup" value={`${fmtPts(t.lineup.total)}`} sub={`adj. PPG · ${ordinal(t.lineup.rank)} of ${n}`} tone="accent" />
-      {odds ? (
-        <StatTile label="Playoff odds" value={pct(odds.playoffPct)} sub={`Title ${(odds.titlePct * 100).toFixed(1)}% · bye ${pct(odds.byePct)}`} tone="accent" />
+      {t.projectedLineup ? (
+        <StatTile label={`Projected wk ${t.projectedLineup.week}`} value={fmtPts(t.projectedLineup.total)} sub={`${ordinal(t.projectedLineup.rank)} of ${n} · healthy starters`} />
       ) : (
         <StatTile label="Power rank" value={`#${t.powerRank}`} sub="Lineup + results blend" />
+      )}
+      {odds ? (
+        <StatTile label="Title odds" value={pct(odds.titlePct)} sub={`Final ${pct(odds.finalPct)} · avg ${odds.avgWins.toFixed(1)} wins`} tone="accent" />
+      ) : (
+        <StatTile label="Record" value={record(t.team.wins, t.team.losses, t.team.ties)} sub={`${ordinal(t.standingRank)} in standings`} />
       )}
       <StatTile label="Asset value" value={fmtInt(t.totals.totalValue)} sub={`${ordinal(t.totals.valueRank)} · ${model.valuation.label}`} />
     </div>

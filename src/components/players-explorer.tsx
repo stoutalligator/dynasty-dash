@@ -10,13 +10,15 @@ export function PlayersExplorer({
   teams,
   valueLabel,
   myRosterId,
+  initialQuery = "",
 }: {
   players: PlayerView[];
   teams: { rosterId: number; name: string }[];
   valueLabel: string;
   myRosterId: number | null;
+  initialQuery?: string;
 }) {
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialQuery);
   const [owner, setOwner] = useState("all");
   const [maxAge, setMaxAge] = useState("");
   const [injuredOnly, setInjuredOnly] = useState(false);

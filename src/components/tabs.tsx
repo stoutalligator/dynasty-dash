@@ -1,7 +1,8 @@
 "use client";
 
 import clsx from "clsx";
-import { Children, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Children, startTransition, useId, useState, useSyncExternalStore, ViewTransition, type ReactNode } from "react";
+import { vtName } from "@/components/page-suspense";
 
 const subscribeHash = (cb: () => void) => {
   window.addEventListener("hashchange", cb);
@@ -15,6 +16,7 @@ export function Tabs({ tabs, children, initial, className }: { tabs: { key: stri
   const fromHash = tabs.some((t) => t.key === hash) ? hash : null;
   const active = picked ?? fromHash ?? initial ?? tabs[0]?.key;
   const panels = Children.toArray(children);
+  const underline = vtName("tab", useId());
   return (
     <div className={className}>
       <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto border-b border-line">
@@ -27,12 +29,17 @@ export function Tabs({ tabs, children, initial, className }: { tabs: { key: stri
             aria-selected={active === t.key}
             aria-controls={`panel-${t.key}`}
             onClick={() => {
-              setPicked(t.key);
+              startTransition(() => setPicked(t.key));
               history.replaceState(null, "", `#${t.key}`);
             }}
-            className={clsx("-mb-px shrink-0 border-b-2 px-3 py-2 text-sm transition", active === t.key ? "border-accent font-medium text-ink" : "border-transparent text-ink-3 hover:text-ink-2")}
+            className={clsx("relative -mb-px shrink-0 px-3 py-2.5 text-sm transition-colors", active === t.key ? "font-medium text-ink" : "text-ink-3 hover:text-ink-2")}
           >
             {t.label}
+            {active === t.key && (
+              <ViewTransition name={underline} share="morph" default="none">
+                <span aria-hidden className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-gradient-to-r from-accent to-accent-2" />
+              </ViewTransition>
+            )}
           </button>
         ))}
       </div>

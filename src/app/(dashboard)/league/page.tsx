@@ -1,12 +1,12 @@
 import clsx from "clsx";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
 import { ActivityFeed } from "@/components/activity-feed";
 import { Avatar } from "@/components/avatar";
 import { OddsTable } from "@/components/league/odds-table";
 import { StandingsTable, StrategyDistribution } from "@/components/league/standings-table";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { PageSuspense } from "@/components/page-suspense";
 import { Tabs } from "@/components/tabs";
 import { Card, CardHeader, ConfidenceBadge, InfoTip, PageTitle, StatTile, StrategyBadge } from "@/components/ui";
 import { leagueOpportunities } from "@/lib/analysis/recommendations";
@@ -250,8 +250,8 @@ async function League() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<PageSkeleton />}>
+    <PageSuspense fallback={<PageSkeleton />}>
       <League />
-    </Suspense>
+    </PageSuspense>
   );
 }

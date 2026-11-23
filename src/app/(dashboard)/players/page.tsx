@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { PageSuspense } from "@/components/page-suspense";
 import { PlayersExplorer } from "@/components/players-explorer";
 import { Card, CardHeader, PageTitle, SourceTag } from "@/components/ui";
 import { getLeague } from "@/lib/server/data";
 
 export const metadata: Metadata = { title: "Players" };
 
-async function Players() {
-  const { model } = await getLeague();
+async function Players({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const [{ q }, { model }] = await Promise.all([searchParams, getLeague()]);
   const players = [...model.teams.flatMap((t) => t.players), ...model.freeAgents];
   const teams = model.teams.map((t) => ({ rosterId: t.team.rosterId, name: t.team.teamName }));
   return (
@@ -27,16 +27,16 @@ async function Players() {
             </span>
           }
         />
-        <PlayersExplorer players={players} teams={teams} valueLabel={model.valuation.label} myRosterId={model.myRosterId} />
+        <PlayersExplorer players={players} teams={teams} valueLabel={model.valuation.label} myRosterId={model.myRosterId} initialQuery={typeof q === "string" ? q.slice(0, 60) : ""} />
       </Card>
     </>
   );
 }
 
-export default function Page() {
+export default function Page({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   return (
-    <Suspense fallback={<PageSkeleton tiles={0} />}>
-      <Players />
-    </Suspense>
+    <PageSuspense fallback={<PageSkeleton tiles={0} />}>
+      <Players searchParams={searchParams} />
+    </PageSuspense>
   );
 }

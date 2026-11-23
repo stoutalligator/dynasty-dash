@@ -9,7 +9,7 @@ import { RosterTable } from "./roster-table";
 export function TeamView({ t, model, extra }: { t: TeamAnalysis; model: LeagueModel; extra?: ReactNode }) {
   return (
     <>
-      <TeamHeader t={t} n={model.teams.length} />
+      <TeamHeader t={t} n={model.teams.length} odds={model.odds?.teams.find((o) => o.rosterId === t.team.rosterId)} />
       <TeamStatTiles t={t} model={model} />
       <div className="mt-5 grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
         <StrategyCard t={t} editable />

@@ -112,7 +112,7 @@ export function SetupFlow({ currentLeagueId, savedUsername }: { currentLeagueId:
                 className="w-full rounded-lg border border-line-strong bg-surface-2 py-2 pr-3 pl-9 text-sm text-ink placeholder:text-ink-3"
               />
             </label>
-            <button type="submit" disabled={pending || !username.trim()} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-60">
+            <button type="submit" disabled={pending || !username.trim()} className="btn-primary rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-60">
               {pending && !found ? "Searching…" : "Find leagues"}
             </button>
           </form>
@@ -172,7 +172,7 @@ export function SetupFlow({ currentLeagueId, savedUsername }: { currentLeagueId:
                 className="w-full rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink placeholder:text-ink-3"
               />
             </label>
-            <button type="submit" disabled={pending || leagueId.length < 6} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-60">
+            <button type="submit" disabled={pending || leagueId.length < 6} className="btn-primary rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-60">
               Look up
             </button>
           </form>
@@ -207,7 +207,7 @@ export function SetupFlow({ currentLeagueId, savedUsername }: { currentLeagueId:
                 type="button"
                 disabled={pending}
                 onClick={() => choose({ leagueId: looked.league.leagueId, userId: null, username: null, rosterId })}
-                className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-60"
+                className="mt-4 btn-primary rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-60"
               >
                 {pending ? "Opening…" : "Open this league"}
               </button>

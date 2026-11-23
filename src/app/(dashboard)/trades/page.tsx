@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { PageSuspense } from "@/components/page-suspense";
 import { TradeHub, type HubTeam, type SavedView } from "@/components/trades/trade-hub";
 import { Notice, PageTitle } from "@/components/ui";
 import type { TeamAnalysis } from "@/lib/analysis/types";
@@ -91,8 +91,8 @@ async function Hub({ searchParams }: { searchParams: Promise<{ partner?: string;
 
 export default function Page({ searchParams }: { searchParams: Promise<{ partner?: string; asset?: string }> }) {
   return (
-    <Suspense fallback={<PageSkeleton tiles={0} />}>
+    <PageSuspense fallback={<PageSkeleton tiles={0} />}>
       <Hub searchParams={searchParams} />
-    </Suspense>
+    </PageSuspense>
   );
 }

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { CommandPalette } from "@/components/shell/command-palette";
 import { Sidebar } from "@/components/shell/sidebar";
 import { LeagueChip, LeagueChipSkeleton, SyncStatus, SyncStatusSkeleton } from "@/components/shell/status";
 
@@ -14,13 +15,14 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
         }
       />
       <div className="min-w-0 flex-1">
-        <header className="border-b border-line px-4 py-3 sm:px-6 lg:px-8">
+        <header className="glass z-30 border-b border-line px-4 py-3 sm:px-6 lg:sticky lg:top-0 lg:px-8">
           <Suspense fallback={<SyncStatusSkeleton />}>
             <SyncStatus />
           </Suspense>
         </header>
         <main className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
+      <CommandPalette />
     </div>
   );
 }

@@ -2,7 +2,8 @@
 
 import clsx from "clsx";
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { useMemo, useState } from "react";
+import { startTransition, useId, useMemo, useState, ViewTransition } from "react";
+import { vtName } from "@/components/page-suspense";
 import { PlayerAvatar } from "@/components/avatar";
 import { PlayerDrawer } from "@/components/player-drawer";
 import { InjuryBadge, InfoTip, PosBadge, ValueTrend } from "@/components/ui";
@@ -291,6 +292,7 @@ export function Segmented({
   labels?: Record<string, string>;
   label: string;
 }) {
+  const id = vtName("seg", useId());
   return (
     <div role="radiogroup" aria-label={label} className="inline-flex rounded-lg border border-line bg-surface-2/50 p-0.5">
       {options.map((o) => (
@@ -299,10 +301,15 @@ export function Segmented({
           type="button"
           role="radio"
           aria-checked={value === o}
-          onClick={() => onChange(o)}
-          className={clsx("rounded-md px-2.5 py-1 text-xs transition", value === o ? "bg-surface-3 font-medium text-ink" : "text-ink-3 hover:text-ink-2")}
+          onClick={() => startTransition(() => onChange(o))}
+          className={clsx("relative rounded-md px-2.5 py-1 text-xs transition-colors", value === o ? "font-medium text-ink" : "text-ink-3 hover:text-ink-2")}
         >
-          {labels?.[o] ?? (o === "ALL" ? "All" : o)}
+          {value === o && (
+            <ViewTransition name={id} share="morph" default="none">
+              <span aria-hidden className="absolute inset-0 rounded-md bg-surface-3 shadow-sm ring-1 ring-inset ring-line-strong/60" />
+            </ViewTransition>
+          )}
+          <span className="relative">{labels?.[o] ?? (o === "ALL" ? "All" : o)}</span>
         </button>
       ))}
     </div>

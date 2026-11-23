@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { PageSuspense } from "@/components/page-suspense";
 import { TeamView } from "@/components/team/team-view";
 import { getLeague } from "@/lib/server/data";
 
@@ -14,8 +14,8 @@ async function TeamProfile({ params }: { params: Promise<{ rosterId: string }> }
 
 export default function Page({ params }: { params: Promise<{ rosterId: string }> }) {
   return (
-    <Suspense fallback={<PageSkeleton tiles={6} />}>
+    <PageSuspense fallback={<PageSkeleton tiles={6} />}>
       <TeamProfile params={params} />
-    </Suspense>
+    </PageSuspense>
   );
 }

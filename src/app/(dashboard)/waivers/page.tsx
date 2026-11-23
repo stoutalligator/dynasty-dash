@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { PlayerAvatar } from "@/components/avatar";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { PageSuspense } from "@/components/page-suspense";
 import { Card, CardHeader, InfoTip, Notice, PageTitle, PosBadge, SourceTag, StatTile } from "@/components/ui";
 import { TierBadge, WaiverExplorer } from "@/components/waivers/waiver-explorer";
 import { PICKUP_WEIGHTS, buildWaiverBoard } from "@/lib/analysis/waivers";
@@ -113,8 +113,8 @@ async function Waivers() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<PageSkeleton />}>
+    <PageSuspense fallback={<PageSkeleton />}>
       <Waivers />
-    </Suspense>
+    </PageSuspense>
   );
 }

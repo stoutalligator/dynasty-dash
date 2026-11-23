@@ -22,7 +22,7 @@ export function LoginForm({ next, error: initialError }: { next: string; error: 
           autoComplete="current-password"
           required
           autoFocus
-          className="w-full rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink"
+          className="w-full rounded-xl border border-line-strong bg-surface-2 px-3.5 py-2.5 text-sm text-ink transition focus:border-accent/60 focus:ring-4 focus:ring-accent/15 focus:outline-none"
         />
       </label>
       {state.error && (
@@ -30,7 +30,7 @@ export function LoginForm({ next, error: initialError }: { next: string; error: 
           {state.error}
         </p>
       )}
-      <button type="submit" disabled={pending || signedIn} className="w-full rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-ink disabled:opacity-60">
+      <button type="submit" disabled={pending || signedIn} className="w-full btn-primary rounded-xl bg-accent px-3 py-2.5 text-sm font-semibold text-accent-ink disabled:opacity-60">
         {pending ? "Signing in…" : signedIn ? "Opening your dashboard…" : "Sign in"}
       </button>
     </form>

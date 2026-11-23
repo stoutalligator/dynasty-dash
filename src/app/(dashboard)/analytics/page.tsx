@@ -1,9 +1,9 @@
 import clsx from "clsx";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
 import { AgeValueChart, WeeklyScoreChart, type AgeValuePoint, type WeeklyPoint } from "@/components/charts";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { PageSuspense } from "@/components/page-suspense";
 import { Card, CardHeader, InfoTip, Notice, PageTitle, PosBadge } from "@/components/ui";
 import { fmtPts, ordinal } from "@/lib/format";
 import { getLeague, myTeam } from "@/lib/server/data";
@@ -257,8 +257,8 @@ function ModelCheck({ report }: { report: BacktestReport }) {
 
 export default function Page() {
   return (
-    <Suspense fallback={<PageSkeleton tiles={0} />}>
+    <PageSuspense fallback={<PageSkeleton tiles={0} />}>
       <Analytics />
-    </Suspense>
+    </PageSuspense>
   );
 }

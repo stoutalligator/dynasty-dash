@@ -4,16 +4,17 @@ import type { ReactNode } from "react";
 import type { Confidence, Strategy } from "@/lib/analysis/types";
 import type { InjuryInfo } from "@/lib/league/models";
 import { fmtSignedInt } from "@/lib/format";
+import { CountUp } from "./motion";
 
-export function Card({ className, children, as: As = "section" }: { className?: string; children: ReactNode; as?: "section" | "div" | "article" }) {
-  return <As className={clsx("rounded-xl border border-line bg-surface", className)}>{children}</As>;
+export function Card({ className, children, as: As = "section", interactive }: { className?: string; children: ReactNode; as?: "section" | "div" | "article"; interactive?: boolean }) {
+  return <As className={clsx("surface-card rounded-2xl border border-line", interactive && "interactive", className)}>{children}</As>;
 }
 
 export function CardHeader({ title, subtitle, action, info }: { title: ReactNode; subtitle?: ReactNode; action?: ReactNode; info?: string }) {
   return (
-    <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
+    <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3 sm:px-5">
       <div className="min-w-0">
-        <h2 className="flex items-center gap-1.5 text-[15px] font-semibold text-ink">
+        <h2 className="flex items-center gap-1.5 text-[15px] font-semibold tracking-tight text-ink">
           {title}
           {info && <InfoTip text={info} />}
         </h2>
@@ -26,10 +27,12 @@ export function CardHeader({ title, subtitle, action, info }: { title: ReactNode
 
 export function StatTile({ label, value, sub, tone }: { label: string; value: ReactNode; sub?: ReactNode; tone?: "default" | "accent" }) {
   return (
-    <div className="rounded-lg border border-line bg-surface px-3.5 py-3">
-      <div className="text-xs text-ink-3">{label}</div>
-      <div className={clsx("tnum mt-1 text-xl font-semibold", tone === "accent" ? "text-accent" : "text-ink")}>{value}</div>
-      {sub && <div className="mt-0.5 text-xs text-ink-3">{sub}</div>}
+    <div className="surface-card rounded-xl border border-line px-4 py-3.5">
+      <div className="label-caps">{label}</div>
+      <div className={clsx("tnum mt-1.5 text-[22px] leading-none font-semibold tracking-tight", tone === "accent" ? "text-gradient" : "text-ink")}>
+        {typeof value === "string" || typeof value === "number" ? <CountUp value={String(value)} /> : value}
+      </div>
+      {sub && <div className="mt-1.5 text-xs text-ink-3">{sub}</div>}
     </div>
   );
 }
@@ -109,8 +112,8 @@ export function GradeBar({ label, score, grade, detail }: { label: string; score
   return (
     <div className="grid grid-cols-[3.25rem_1fr_2.25rem] items-center gap-3" title={detail}>
       <span className="text-xs font-medium text-ink-2">{label}</span>
-      <div className="h-2 rounded-full bg-brand-blue/15" role="meter" aria-valuenow={score} aria-valuemin={0} aria-valuemax={100} aria-label={`${label} ${grade}`}>
-        <div className="h-2 rounded-full bg-brand-blue" style={{ width: `${Math.max(4, score)}%` }} />
+      <div className="h-2 overflow-hidden rounded-full bg-brand-blue/12" role="meter" aria-valuenow={score} aria-valuemin={0} aria-valuemax={100} aria-label={`${label} ${grade}`}>
+        <div className="animate-grow-x h-2 rounded-full bg-gradient-to-r from-brand-blue to-accent-2" style={{ width: `${Math.max(4, score)}%` }} />
       </div>
       <span className="tnum text-right text-xs font-semibold text-ink">{grade}</span>
     </div>
@@ -126,7 +129,7 @@ export function InfoTip({ text }: { text: string }) {
       </button>
       <span
         role="tooltip"
-        className="pointer-events-none absolute top-5 left-1/2 z-30 hidden w-64 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-md border border-line-strong bg-surface-3 px-2.5 py-2 text-xs leading-relaxed font-normal normal-case tracking-normal text-ink-2 shadow-xl group-focus-within:block group-hover:block"
+        className="animate-pop-in pointer-events-none absolute top-5 left-1/2 z-30 hidden w-64 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg border border-line-strong bg-surface-3/95 px-2.5 py-2 text-xs leading-relaxed font-normal normal-case tracking-normal text-ink-2 shadow-2xl backdrop-blur group-focus-within:block group-hover:block"
       >
         {text}
       </span>
@@ -135,7 +138,7 @@ export function InfoTip({ text }: { text: string }) {
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={clsx("animate-pulse rounded-md bg-surface-2", className)} />;
+  return <div className={clsx("skeleton-shimmer rounded-lg", className)} />;
 }
 
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {

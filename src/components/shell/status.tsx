@@ -4,6 +4,7 @@ import { Avatar } from "@/components/avatar";
 import { Skeleton } from "@/components/ui";
 import { fmtRelative } from "@/lib/format";
 import { getLeague } from "@/lib/server/data";
+import { CommandPaletteButton } from "./command-palette";
 import { RefreshButton } from "./refresh-button";
 
 /** League identity chip for the sidebar. */
@@ -55,16 +56,17 @@ export async function SyncStatus() {
             <AlertTriangle className="size-3.5" aria-hidden /> {problems.length} data warning{problems.length > 1 ? "s" : ""}
           </Link>
         ) : (
-          <span className="inline-flex items-center gap-1">
-            <CircleCheck className="size-3.5 text-good" aria-hidden /> Live Sleeper data
+          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+            <CircleCheck className="size-3.5 text-good" aria-hidden /> Live<span className="hidden sm:inline"> Sleeper data</span>
           </span>
         )}
-        {oldest && <span title={`League data fetched ${new Date(oldest).toLocaleString()}`}>Synced {fmtRelative(oldest)}</span>}
+        {oldest && <span className="whitespace-nowrap" title={`League data fetched ${new Date(oldest).toLocaleString()}`}>Synced {fmtRelative(oldest)}</span>}
         {model.freshness.valuations && (
           <span className="hidden sm:inline" title={`${model.valuation.label} values fetched ${new Date(model.freshness.valuations.fetchedAt).toLocaleString()}`}>
             Values {fmtRelative(model.freshness.valuations.fetchedAt)}
           </span>
         )}
+        <CommandPaletteButton />
         <RefreshButton />
       </div>
     </div>

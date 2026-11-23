@@ -25,8 +25,8 @@ export function PlayerDrawer({ player: p, teamName, onClose }: { player: PlayerV
 
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={`${p.name} details`}>
-      <button type="button" aria-label="Close" className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <aside className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col overflow-y-auto border-l border-line bg-surface shadow-2xl">
+      <button type="button" aria-label="Close" className="animate-fade-in absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
+      <aside className="animate-slide-in-right absolute inset-y-0 right-0 flex w-full max-w-md flex-col overflow-y-auto border-l border-line bg-surface shadow-2xl">
         <div className="flex items-start gap-3 border-b border-line p-4">
           <PlayerAvatar id={p.id} name={p.name} size={52} />
           <div className="min-w-0 flex-1">

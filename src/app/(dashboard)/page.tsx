@@ -5,6 +5,7 @@ import { ActivityFeed } from "@/components/activity-feed";
 import { PlayerAvatar } from "@/components/avatar";
 import { StandingsTable, StrategyDistribution } from "@/components/league/standings-table";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { PageSuspense } from "@/components/page-suspense";
 import { Recommendations } from "@/components/team/recommendations";
 import { PicksCard, PositionGradesCard, StrategyCard, TeamHeader, TeamStatTiles } from "@/components/team/team-panels";
 import { ProposalSummary } from "@/components/trades/proposal-summary";
@@ -41,7 +42,7 @@ async function Dashboard() {
           <Notice level="error">{e.message}</Notice>
         </div>
       ))}
-      <TeamHeader t={t} n={model.teams.length} />
+      <TeamHeader t={t} n={model.teams.length} odds={model.odds?.teams.find((o) => o.rosterId === t.team.rosterId)} />
       <TeamStatTiles t={t} model={model} />
 
       <div className="mt-5 grid gap-5 xl:grid-cols-3">
@@ -183,8 +184,8 @@ function TradeCardsSkeleton() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<PageSkeleton tiles={6} />}>
+    <PageSuspense fallback={<PageSkeleton tiles={6} />}>
       <Dashboard />
-    </Suspense>
+    </PageSuspense>
   );
 }

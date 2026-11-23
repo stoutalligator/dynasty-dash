@@ -158,3 +158,40 @@ export async function generateDigest(deliver: boolean): Promise<Result<{ deliver
     return fail(err);
   }
 }
+
+export type PlayerHit = { id: string; assetId: string; name: string; position: string | null; nflTeam: string | null; teamName: string | null; mine: boolean; value: number | null };
+
+/** Command-palette search over every rostered player and tracked free agent. */
+export async function searchPlayers(query: string): Promise<Result<PlayerHit[]>> {
+  try {
+    const q = z.string().max(60).parse(query).trim().toLowerCase();
+    if (q.length < 2) return { ok: true, data: [] };
+    const { model } = await loadLeagueModel();
+    const teamName = new Map(model.teams.map((t) => [t.team.rosterId, t.team.teamName]));
+    const all = [...model.teams.flatMap((t) => t.players), ...model.freeAgents];
+    const score = (name: string) => {
+      const n = name.toLowerCase();
+      if (n.startsWith(q)) return 3;
+      if (n.split(" ").some((w) => w.startsWith(q))) return 2;
+      return n.includes(q) ? 1 : 0;
+    };
+    const hits = all
+      .map((p) => ({ p, s: score(p.name) }))
+      .filter((x) => x.s > 0)
+      .sort((a, b) => b.s - a.s || (b.p.value ?? 0) - (a.p.value ?? 0))
+      .slice(0, 8)
+      .map(({ p }) => ({
+        id: p.id,
+        assetId: p.assetId,
+        name: p.name,
+        position: p.position,
+        nflTeam: p.nflTeam,
+        teamName: p.rosterId != null ? (teamName.get(p.rosterId) ?? null) : null,
+        mine: p.rosterId != null && p.rosterId === model.myRosterId,
+        value: p.value,
+      }));
+    return { ok: true, data: hits };
+  } catch (err) {
+    return fail(err);
+  }
+}

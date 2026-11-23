@@ -1,9 +1,9 @@
 import clsx from "clsx";
 import { Trophy } from "lucide-react";
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { TradeLedger } from "@/components/history/trade-ledger";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { PageSuspense } from "@/components/page-suspense";
 import { Tabs } from "@/components/tabs";
 import { Card, CardHeader, InfoTip, Notice, PageTitle } from "@/components/ui";
 import { fmtPts, fmtSignedInt, ordinal } from "@/lib/format";
@@ -166,8 +166,8 @@ async function HistoryContent() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<PageSkeleton />}>
+    <PageSuspense fallback={<PageSkeleton />}>
       <HistoryContent />
-    </Suspense>
+    </PageSuspense>
   );
 }

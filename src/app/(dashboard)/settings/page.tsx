@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
 import { Avatar } from "@/components/avatar";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { PageSuspense } from "@/components/page-suspense";
 import { RefreshButton } from "@/components/shell/refresh-button";
 import { StrategyOverride } from "@/components/team/strategy-override";
 import { Card, CardHeader, Notice, PageTitle, SourceTag, StrategyBadge } from "@/components/ui";
@@ -164,8 +164,8 @@ async function SettingsContent() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<PageSkeleton tiles={0} />}>
+    <PageSuspense fallback={<PageSkeleton tiles={0} />}>
       <SettingsContent />
-    </Suspense>
+    </PageSuspense>
   );
 }

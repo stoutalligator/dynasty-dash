@@ -193,7 +193,7 @@ export function TradeHub({
             type="button"
             onClick={() => run()}
             disabled={pending}
-            className={clsx("ml-auto inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition disabled:opacity-60", dirty ? "bg-accent text-accent-ink hover:brightness-110" : "bg-surface-3 text-ink hover:bg-line-strong")}
+            className={clsx("ml-auto inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition disabled:opacity-60", dirty ? "btn-primary bg-accent text-accent-ink" : "bg-surface-3 text-ink hover:bg-line-strong")}
           >
             <Search aria-hidden className="size-4" /> {pending ? "Searching…" : "Find trades"}
           </button>
@@ -301,7 +301,7 @@ export function TradeHub({
                 onStar={(id) => toggleFlag("targets", id)}
               />
               <div className="flex gap-2">
-                <button type="button" disabled={pending || !bMine.length || !bTheirs.length} onClick={() => evaluate(bMine, bTheirs, bPartner)} className="flex-1 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-ink disabled:opacity-50">
+                <button type="button" disabled={pending || !bMine.length || !bTheirs.length} onClick={() => evaluate(bMine, bTheirs, bPartner)} className="flex-1 btn-primary rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-ink disabled:opacity-50">
                   Evaluate
                 </button>
                 <button type="button" disabled={pending || !bMine.length || !bTheirs.length} onClick={() => save(bPartner, bMine, bTheirs)} className="rounded-lg bg-surface-3 px-3 py-2 text-sm text-ink disabled:opacity-50">

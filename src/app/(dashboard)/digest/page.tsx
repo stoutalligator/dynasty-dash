@@ -1,9 +1,9 @@
 import clsx from "clsx";
 import type { Metadata } from "next";
 import { connection } from "next/server";
-import { Suspense } from "react";
 import { DigestActions } from "@/components/digest-actions";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { PageSuspense } from "@/components/page-suspense";
 import { Card, CardHeader, Notice, PageTitle } from "@/components/ui";
 import { getConfig } from "@/lib/config";
 import { readDigestHistory, readLatestDigest } from "@/lib/digest/run";
@@ -81,8 +81,8 @@ async function DigestContent() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<PageSkeleton tiles={0} />}>
+    <PageSuspense fallback={<PageSkeleton tiles={0} />}>
       <DigestContent />
-    </Suspense>
+    </PageSuspense>
   );
 }

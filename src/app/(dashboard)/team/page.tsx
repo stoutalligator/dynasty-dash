@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { PageSkeleton } from "@/components/page-skeleton";
+import { PageSuspense } from "@/components/page-suspense";
 import { Recommendations } from "@/components/team/recommendations";
 import { TeamView } from "@/components/team/team-view";
 import { Card, CardHeader, Notice } from "@/components/ui";
@@ -42,8 +42,8 @@ async function MyTeam() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<PageSkeleton tiles={6} />}>
+    <PageSuspense fallback={<PageSkeleton tiles={6} />}>
       <MyTeam />
-    </Suspense>
+    </PageSuspense>
   );
 }
