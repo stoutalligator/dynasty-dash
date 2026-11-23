@@ -8,6 +8,8 @@ import type { ValuationSet } from "@/lib/providers/types";
 import { gradeFromRank, median, rankAsc, rankDesc, rankPct } from "./grades";
 import { gradedPositions, lineupImpacts, optimalLineup, type LineupCandidate } from "./lineup";
 import { analyzeHistory } from "@/lib/history/analyze";
+import { headToHead } from "@/lib/history/h2h";
+import { faabMarket } from "./faab";
 import type { LeagueHistory } from "@/lib/history/load";
 import type { StatsBundle } from "@/lib/stats/load";
 import { computeProduction, computeProductionFromStats, round, teamWeeklyScores, type PlayerProduction } from "./production";
@@ -390,6 +392,9 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
     };
   });
 
+  // History loads the current season too; past-season aggregates must not count it twice.
+  const pastSeasons = (history?.seasons ?? []).filter((h) => h.season !== s.league.season && h.leagueId !== s.league.id);
+
   // ---- Free agents: every unrostered QB/RB/WR/TE with any real signal --------------------------
   // (production this season, a projection, a third-party value, or Sleeper-wide add activity).
   const rosteredIds = new Set(rostered.map((p) => p.id));
@@ -448,6 +453,31 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
     odds: null,
     modelCheck: null,
     trendingFetchedAt: trending?.fetchedAt ?? null,
+    schedule: s.schedule,
+    liveWeek: (() => {
+      const lw = s.weeks.find((w) => !w.complete && w.week === s.league.currentWeek);
+      return lw
+        ? {
+            week: lw.week,
+            entries: lw.entries.map((e) => ({ rosterId: e.rosterId, starters: e.starters, startersPoints: e.startersPoints })),
+            // Anyone with non-zero points this week has played (and is locked in Sleeper).
+            played: [...new Set(lw.entries.flatMap((e) => Object.entries(e.playersPoints).filter(([, pts]) => pts !== 0).map(([id]) => id)))],
+          }
+        : null;
+    })(),
+    faab: (() => {
+      const m = faabMarket([
+        { season: s.league.season, transactions: s.transactions },
+        ...pastSeasons.map((h) => ({ season: h.season, transactions: h.transactions })),
+      ]);
+      if (m) for (const t of m.top) t.name = s.players[t.playerId]?.name;
+      return m;
+    })(),
+    h2h: headToHead({
+      pastSeasons: pastSeasons.map((h) => ({ weeks: h.weeks, rosterOwner: h.rosterOwner })),
+      currentWeeks: s.weeks,
+      currentTeams: s.teams.map((t) => ({ rosterId: t.rosterId, ownerId: t.ownerId })),
+    }),
     history: history
       ? analyzeHistory(history, {
           currentSeason: s.league.season,

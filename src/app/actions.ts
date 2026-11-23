@@ -11,6 +11,7 @@ import { evaluateTrade, type TradeEvaluation } from "@/lib/trades/evaluate";
 import { generateOptionsSchema, generateTrades } from "@/lib/trades/generate";
 import { generateThreeTeamTrades, threeTeamOptionsSchema, type ThreeTeamEvaluation } from "@/lib/trades/three-team";
 import { annotateThreeTeamOdds, annotateTradeOdds } from "@/lib/server/odds";
+import { suggestCounters, type CounterOffer } from "@/lib/trades/counter";
 import { runDigest } from "@/lib/digest/run";
 
 const log = logger("actions");
@@ -110,6 +111,34 @@ export async function evaluateCustomTrade(input: unknown): Promise<Result<TradeE
       objective: i.objective,
     });
     return { ok: true, data: annotateTradeOdds(model, [ev], i.objective)[0] };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Smallest changes that would make a builder trade workable for both sides. */
+export async function counterOffers(input: unknown): Promise<Result<CounterOffer[]>> {
+  try {
+    const i = evalSchema.parse(input);
+    const { model, prefs } = await loadLeagueModel();
+    if (model.myRosterId == null) throw new Error("Your team could not be verified.");
+    const idx = assetIndex(model);
+    const resolve = (ids: string[], owner: number) =>
+      ids.map((id) => {
+        const a = idx.get(id);
+        if (!a || a.rosterId !== owner) throw new Error(`Asset ${id} is not owned by roster ${owner}`);
+        return a;
+      });
+    const counters = suggestCounters(model, {
+      myRosterId: model.myRosterId,
+      partnerRosterId: i.partnerRosterId,
+      myGives: resolve(i.myAssets, model.myRosterId),
+      theirGives: resolve(i.theirAssets, i.partnerRosterId),
+      objective: i.objective,
+      untouchables: prefs.untouchables,
+    });
+    for (const c of counters) c.evaluation = annotateTradeOdds(model, [c.evaluation], i.objective)[0];
+    return { ok: true, data: counters };
   } catch (err) {
     return fail(err);
   }

@@ -4,7 +4,7 @@ import type { WeekResult } from "@/lib/league/models";
 import { isUnavailable } from "@/lib/players/normalize";
 import type { PlayerInfo } from "@/lib/league/models";
 import type { WeeklyLines } from "@/lib/stats/load";
-import { simulateSeason, type SimInput, type SimTeam, type TeamOdds } from "./season";
+import { simulateSeason, type SimInput, type SimTeam, type Stakes, type TeamOdds } from "./season";
 
 type PlayerLite = { id: string; positions: string[]; slot: string | null; unavailable: boolean };
 
@@ -15,6 +15,8 @@ export type SimSummary = {
   regularWeeks: number[];
   playoffWeeks: number[];
   teams: (TeamOdds & { projectedPpg: number })[];
+  /** My odds if I win vs. lose my next game (null when not scheduled or no team). */
+  stakes: Stakes | null;
   assumptions: string[];
 };
 
@@ -142,7 +144,19 @@ export function buildSeasonSim(opts: {
   ctx.input.teams = model.teams.map((t) => simTeam(t.team.rosterId, playersByRoster.get(t.team.rosterId)!));
   registry.set(model, Object.assign(ctx, { simTeam }));
 
-  const odds = simulateSeason(ctx.input, opts.runs);
+  // Stakes are for my next undecided game: once every starter in this week's game has played, next week.
+  let focusWeek = opts.schedule[0]?.week;
+  const live = model.liveWeek;
+  if (live && model.myRosterId != null && live.week === focusWeek) {
+    const pair = opts.schedule[0].pairs.find((p) => p.includes(model.myRosterId!));
+    const done = pair?.every((rid) => {
+      const e = live.entries.find((x) => x.rosterId === rid);
+      return !!e && e.starters.length > 0 && e.startersPoints.every((pts, i) => pts !== 0 || e.starters[i] === "0");
+    });
+    if (done && opts.schedule[1]) focusWeek = opts.schedule[1].week;
+  }
+  const focus: { rosterId: number; week?: number; result?: Stakes } | undefined = model.myRosterId != null ? { rosterId: model.myRosterId, week: focusWeek } : undefined;
+  const odds = simulateSeason(ctx.input, opts.runs, undefined, focus);
   const weeksAll = [...regularWeeks, ...playoffWeeks];
   return {
     runs: opts.runs,
@@ -150,6 +164,7 @@ export function buildSeasonSim(opts: {
     calibration: Math.round(calibration * 1000) / 1000,
     regularWeeks,
     playoffWeeks,
+    stakes: focus?.result ?? null,
     teams: odds.map((o) => {
       const means = ctx.input.teams.find((t) => t.rosterId === o.rosterId)!.weekMeans;
       return { ...o, projectedPpg: Math.round((weeksAll.reduce((a, w) => a + (means.get(w) ?? 0), 0) / Math.max(1, weeksAll.length)) * 10) / 10 };

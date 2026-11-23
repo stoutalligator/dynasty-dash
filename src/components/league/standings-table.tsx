@@ -5,7 +5,7 @@ import { StrategyBadge } from "@/components/ui";
 import type { LeagueModel } from "@/lib/analysis/types";
 import { fmtPts, record } from "@/lib/format";
 
-export function StandingsTable({ model, limit, showStrategy = true }: { model: LeagueModel; limit?: number; showStrategy?: boolean }) {
+export function StandingsTable({ model, limit, showStrategy = true, movement }: { model: LeagueModel; limit?: number; showStrategy?: boolean; movement?: Map<number, number> }) {
   const rows = model.standings.slice(0, limit ?? model.standings.length).map((rid) => model.teams.find((t) => t.team.rosterId === rid)!);
   const playoffLine = model.league.playoffTeams ?? null;
   return (
@@ -44,7 +44,9 @@ export function StandingsTable({ model, limit, showStrategy = true }: { model: L
               <td className="py-2 pr-4 text-right text-ink-2 sm:pr-0">{fmtPts(t.team.pointsFor)}</td>
               <td className="hidden py-2 text-right text-ink-2 sm:table-cell">{fmtPts(t.team.pointsAgainst)}</td>
               <td className="hidden py-2 text-right text-ink-2 md:table-cell">{fmtPts(t.team.potentialPoints)}</td>
-              <td className="hidden py-2 text-right text-ink-2 sm:table-cell">#{t.powerRank}</td>
+              <td className="hidden py-2 text-right text-ink-2 sm:table-cell">
+                <RankMove delta={movement?.get(t.team.rosterId)} />#{t.powerRank}
+              </td>
               {showStrategy && (
                 <td className="hidden py-2 pr-4 pl-3 sm:table-cell">
                   <StrategyBadge strategy={t.strategy.effective} />
@@ -85,5 +87,16 @@ export function StrategyDistribution({ model }: { model: LeagueModel }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/** Power-rank movement over the last week (from daily snapshots). */
+function RankMove({ delta }: { delta: number | undefined }) {
+  if (!delta) return null;
+  return (
+    <span className={clsx("tnum mr-1.5 text-[10px] font-semibold", delta > 0 ? "text-good" : "text-critical")} title={`${delta > 0 ? "Up" : "Down"} ${Math.abs(delta)} in power rank over the past week`}>
+      {delta > 0 ? "▲" : "▼"}
+      {Math.abs(delta)}
+    </span>
   );
 }

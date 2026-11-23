@@ -1,9 +1,12 @@
+import clsx from "clsx";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Card, CardHeader, SourceTag } from "@/components/ui";
 import type { LeagueModel, TeamAnalysis } from "@/lib/analysis/types";
 import { LineupCard, NeedsCard, PicksCard, PositionGradesCard, StrategyCard, TeamHeader, TeamStatTiles } from "./team-panels";
 import { RosterTable } from "./roster-table";
+import { HeadToHeadVsMe, RivalriesCard } from "./h2h-card";
+import { ThisWeekCard } from "@/components/week/this-week-card";
 
 /** Full team profile, shared by My Team and every league team page. */
 export function TeamView({ t, model, extra }: { t: TeamAnalysis; model: LeagueModel; extra?: ReactNode }) {
@@ -11,6 +14,10 @@ export function TeamView({ t, model, extra }: { t: TeamAnalysis; model: LeagueMo
     <>
       <TeamHeader t={t} n={model.teams.length} odds={model.odds?.teams.find((o) => o.rosterId === t.team.rosterId)} />
       <TeamStatTiles t={t} model={model} />
+      <div className={clsx("mt-5 grid gap-5", t.team.isMine && "lg:grid-cols-2")}>
+        {t.team.isMine ? <ThisWeekCard model={model} t={t} /> : <HeadToHeadVsMe model={model} t={t} />}
+        {t.team.isMine && <RivalriesCard model={model} t={t} />}
+      </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
         <StrategyCard t={t} editable />
         <PositionGradesCard t={t} model={model} />

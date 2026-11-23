@@ -79,7 +79,7 @@ export function CommandPalette() {
     const players: Item[] =
       query.length >= 2
         ? hits.flatMap((h): Item[] => [
-            { kind: "player", key: `p:${h.id}`, hit: h, href: `/players?q=${encodeURIComponent(h.name)}` },
+            { kind: "player", key: `p:${h.id}`, hit: h, href: `/players/${h.id}` },
             ...(h.teamName ? [{ kind: "trade" as const, key: `t:${h.id}`, hit: h, href: `/trades?asset=${encodeURIComponent(h.assetId)}` }] : []),
           ])
         : [];

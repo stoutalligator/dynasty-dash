@@ -3,7 +3,8 @@
 import clsx from "clsx";
 import { Ban, Bookmark, ChevronDown, Columns3, Crosshair, Lock, Search, Star, Tag, Trash2, Wrench, X } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
-import { deleteProposal, evaluateCustomTrade, findTrades, saveProposal, toggleAssetFlag } from "@/app/actions";
+import { counterOffers, deleteProposal, evaluateCustomTrade, findTrades, saveProposal, toggleAssetFlag } from "@/app/actions";
+import type { CounterOffer } from "@/lib/trades/counter";
 import { Segmented } from "@/components/team/roster-table";
 import { Card, CardHeader, InfoTip, PosBadge, StrategyBadge } from "@/components/ui";
 import type { Strategy } from "@/lib/analysis/types";
@@ -63,6 +64,7 @@ export function TradeHub({
   const [bMine, setBMine] = useState<string[]>([]);
   const [bTheirs, setBTheirs] = useState<string[]>([]);
   const [bResult, setBResult] = useState<TradeEvaluation | null>(null);
+  const [counters, setCounters] = useState<CounterOffer[]>([]);
   const [bFilter, setBFilter] = useState("");
   const [note, setNote] = useState<string | null>(null);
 
@@ -116,9 +118,16 @@ export function TradeHub({
         setBResult(null);
         return;
       }
+      setCounters([]);
       const r = await evaluateCustomTrade({ partnerRosterId: rid, myAssets: mine, theirAssets: theirs, objective });
-      if (r.ok) setBResult(r.data);
-      else setNote(r.error);
+      if (r.ok) {
+        setBResult(r.data);
+        // Lopsided? Suggest the smallest change that works for both sides.
+        if (r.data.partner.score < 0 || r.data.mine.score <= 0) {
+          const c = await counterOffers({ partnerRosterId: rid, myAssets: mine, theirAssets: theirs, objective });
+          if (c.ok) setCounters(c.data);
+        }
+      } else setNote(r.error);
     });
 
   const openInBuilder = (e: TradeEvaluation) => {
@@ -317,6 +326,36 @@ export function TradeHub({
       {bResult && (
         <Card>
           <CardHeader title="Builder evaluation" subtitle={`${me.name} ↔ ${bResult.partner.teamName} · ${objective} objective`} action={<button type="button" onClick={() => toggleCompare(bResult)} className="text-xs text-accent hover:underline">Add to compare</button>} />
+          {counters.length > 0 && (
+            <div className="mx-4 mb-4 rounded-xl border border-accent/25 bg-accent/5 p-3 sm:mx-5">
+              <div className="label-caps mb-2 text-accent">Make it work</div>
+              <p className="mb-2 text-xs text-ink-2">
+                {bResult.partner.score < 0 ? `${bResult.partner.teamName} has little reason to accept as-is.` : "As-is, this costs you more than it returns."} One change that balances it:
+              </p>
+              <ul className="space-y-1.5">
+                {counters.map((c) => (
+                  <li key={`${c.kind}-${c.asset.assetId}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-surface/70 px-3 py-2 text-sm">
+                    <span className="min-w-0 flex-1 font-medium text-ink">{c.change}</span>
+                    <span className="text-xs text-ink-3">
+                      {c.evaluation.partnerOutlook} · your value {fmtSignedInt(c.evaluation.mine.netValue)} · lineup {fmtSigned(c.evaluation.mine.lineupDelta)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBMine(c.evaluation.mine.gives.map((a) => a.assetId));
+                        setBTheirs(c.evaluation.mine.gets.map((a) => a.assetId));
+                        setBResult(c.evaluation);
+                        setCounters([]);
+                      }}
+                      className="rounded-md bg-accent/15 px-2 py-1 text-xs font-semibold text-accent hover:bg-accent/25"
+                    >
+                      Use this
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="px-4 pb-4"><TradeDetail e={bResult} /></div>
         </Card>
       )}

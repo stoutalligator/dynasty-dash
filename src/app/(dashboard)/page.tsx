@@ -10,6 +10,9 @@ import { Recommendations } from "@/components/team/recommendations";
 import { PicksCard, PositionGradesCard, StrategyCard, TeamHeader, TeamStatTiles } from "@/components/team/team-panels";
 import { ProposalSummary } from "@/components/trades/proposal-summary";
 import { ValueMoversCard } from "@/components/team/value-movers";
+import { ThisWeekCard } from "@/components/week/this-week-card";
+import { SeasonTrendCard } from "@/components/team/season-trend";
+import { rankMovement, readSnapshots } from "@/lib/snapshots/store";
 import { Card, CardHeader, InjuryBadge, Notice, PosBadge, Skeleton } from "@/components/ui";
 import { setImmediate as yieldToStream } from "node:timers/promises";
 import { getLeague, myTeam } from "@/lib/server/data";
@@ -21,6 +24,7 @@ import { tradeWindow, tradeWindowNote } from "@/lib/league/trade-window";
 
 async function Dashboard() {
   const { model } = await getLeague();
+  const snaps = await readSnapshots(model.league.id);
   const t = myTeam(model);
   if (!t) {
     return (
@@ -47,13 +51,14 @@ async function Dashboard() {
 
       <div className="mt-5 grid gap-5 xl:grid-cols-3">
         <div className="space-y-5 xl:col-span-2">
+          <ThisWeekCard model={model} t={t} />
           <Suspense fallback={<TradeCardsSkeleton />}>
             <DashboardTradeCards />
           </Suspense>
 
           <Card>
             <CardHeader title="Standings" action={<Link href="/league" className="text-xs text-accent hover:underline">League →</Link>} />
-            <StandingsTable model={model} />
+            <StandingsTable model={model} movement={rankMovement(snaps, model)} />
           </Card>
         </div>
 
@@ -61,6 +66,7 @@ async function Dashboard() {
           <StrategyCard t={t} />
           <PositionGradesCard t={t} model={model} />
           <ValueMoversCard t={t} model={model} />
+          <SeasonTrendCard snaps={snaps} rosterId={t.team.rosterId} />
           <Card>
             <CardHeader title="League outlook" subtitle="Inferred from observable data; overrides respected" />
             <StrategyDistribution model={model} />

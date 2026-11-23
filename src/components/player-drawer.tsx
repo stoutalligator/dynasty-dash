@@ -41,6 +41,9 @@ export function PlayerDrawer({ player: p, teamName, onClose }: { player: PlayerV
               {p.rosterId != null ? `Rostered${teamName ? ` by ${teamName}` : ""}${p.slot ? ` · ${p.slot}` : ""}` : "Available in your league"}
             </p>
             <div className="mt-1.5"><InjuryBadge injury={p.injury} /></div>
+            <Link href={`/players/${p.id}`} onClick={onClose} className="mt-2.5 mr-2 inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-ink-2 hover:text-ink">
+              Full profile
+            </Link>
             {p.rosterId != null && (
               <Link
                 href={`/trades?asset=${encodeURIComponent(p.assetId)}`}

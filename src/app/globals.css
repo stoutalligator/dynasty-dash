@@ -384,6 +384,15 @@ button:active:not(:disabled) {
   transform-origin: left center;
   animation: grow-x 800ms var(--ease-out) both 160ms;
 }
+.animate-grow-y {
+  transform-origin: bottom center;
+  animation: grow-y 700ms var(--ease-out) both 120ms;
+}
+@keyframes grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
 .animate-fade-in {
   animation: fade-in 200ms ease-out both;
 }

@@ -12,6 +12,7 @@ import { Card, CardHeader, ConfidenceBadge, InfoTip, PageTitle, StatTile, Strate
 import { leagueOpportunities } from "@/lib/analysis/recommendations";
 import type { LeagueModel } from "@/lib/analysis/types";
 import { fmtAge, fmtInt, fmtPts, ordinal } from "@/lib/format";
+import { rankMovement, readSnapshots } from "@/lib/snapshots/store";
 import { getLeague } from "@/lib/server/data";
 
 export const metadata: Metadata = { title: "League" };
@@ -227,7 +228,7 @@ async function League() {
         <div className="grid gap-5 xl:grid-cols-3">
           <Card className="xl:col-span-2">
             <CardHeader title="Standings" subtitle={l.divisions.length ? "Division in team profile" : undefined} />
-            <StandingsTable model={model} />
+            <StandingsTable model={model} movement={rankMovement(await readSnapshots(model.league.id), model)} />
           </Card>
           <Card>
             <CardHeader title="League distribution" info="Strategy is inferred per team from lineup strength, results, age, and draft capital, and can be overridden on any team's page." />

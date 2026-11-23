@@ -22,12 +22,12 @@ export function TierBadge({ tier }: { tier: PickupTier }) {
 }
 
 /** Weekly points as tiny bars; empty bars are weeks without a game. */
-function Sparkbars({ weekly }: { weekly: { week: number; points: number; played: boolean }[] }) {
+export function Sparkbars({ weekly }: { weekly: { week: number; points: number; played: boolean }[] }) {
   const max = Math.max(1, ...weekly.map((w) => w.points));
   return (
     <span className="flex h-6 items-end gap-[2px]" role="img" aria-label={`Weekly points: ${weekly.map((w) => `wk ${w.week} ${w.played ? w.points.toFixed(1) : "no game"}`).join(", ")}`}>
       {weekly.map((w) => (
-        <span key={w.week} title={`Wk ${w.week}: ${w.played ? w.points.toFixed(1) : "no game"}`} className={clsx("w-1.5 rounded-t-sm", w.played ? "bg-brand-blue" : "bg-line")} style={{ height: `${w.played ? Math.max(8, (w.points / max) * 100) : 8}%` }} />
+        <span key={w.week} title={`Wk ${w.week}: ${w.played ? w.points.toFixed(1) : "no game"}`} className={clsx("w-1.5 rounded-t-[2px]", w.played ? "bg-series-1/85" : "bg-line")} style={{ height: `${w.played ? Math.max(8, (w.points / max) * 100) : 8}%` }} />
       ))}
     </span>
   );
@@ -35,7 +35,7 @@ function Sparkbars({ weekly }: { weekly: { week: number; points: number; played:
 
 type SortKey = "score" | "recent" | "proj" | "snap" | "trending" | "value";
 
-export function WaiverExplorer({ candidates, projectionWeek }: { candidates: WaiverCandidate[]; projectionWeek: number | null }) {
+export function WaiverExplorer({ candidates, projectionWeek, bids }: { candidates: WaiverCandidate[]; projectionWeek: number | null; bids?: Record<string, { low: number; high: number }> }) {
   const [pos, setPos] = useState("ALL");
   const [tier, setTier] = useState("ALL");
   const [fits, setFits] = useState(false);
@@ -119,6 +119,11 @@ export function WaiverExplorer({ candidates, projectionWeek }: { candidates: Wai
                 <div className="flex flex-col items-end gap-1">
                   <TierBadge tier={c.tier} />
                   <span className="tnum text-lg font-semibold text-ink" title="Pickup score (0–100)">{c.score}</span>
+                  {bids?.[p.id] && (
+                    <span className="tnum rounded-full bg-accent/10 px-2 py-px text-[10px] font-semibold text-accent ring-1 ring-inset ring-accent/25" title="Suggested FAAB bid from this league's winning bids for players at this tier">
+                      Bid ${bids[p.id].low}{bids[p.id].high > bids[p.id].low ? `–${bids[p.id].high}` : ""}
+                    </span>
+                  )}
                 </div>
               </div>
 

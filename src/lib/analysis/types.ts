@@ -1,3 +1,6 @@
+import type { FaabMarket } from "./faab";
+import type { H2HRecord } from "@/lib/history/h2h";
+import type { ScheduledWeek } from "@/lib/league/models";
 import type {
   DraftPick,
   InjuryInfo,
@@ -187,6 +190,14 @@ export type LeagueModel = {
   projectionWeeks: number[];
   trendingFetchedAt: string | null;
   history: HistoryAnalysis | null;
+  /** The in-progress week's Sleeper lineups and live points (null before kickoff or between weeks). */
+  liveWeek: { week: number; entries: { rosterId: number; starters: string[]; startersPoints: number[] }[]; played: string[] } | null;
+  /** Remaining regular-season pairings (current week included). */
+  schedule: ScheduledWeek[];
+  /** This league's winning FAAB bids, as a price reference (null when too few). */
+  faab: FaabMarket | null;
+  /** All-time head-to-head records: h2h[a][b] is team a's record against team b. */
+  h2h: Record<number, Record<number, H2HRecord>>;
   /** Season simulation (playoff and title odds); null when it cannot run (e.g. offseason). */
   odds: SimSummary | null;
   /** Backtest of the current-strength signals on completed seasons. */

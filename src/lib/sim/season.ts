@@ -73,7 +73,11 @@ export function seedTeams(standings: Standing[], playoffTeams: number, divisionW
   return [...top, ...rest].slice(0, playoffTeams).map((s) => s.idx);
 }
 
-export function simulateSeason(input: SimInput, runs: number, seed = 20_261_018): TeamOdds[] {
+/** Odds for one team split by the result of its next head-to-head game (filled in by simulateSeason). */
+export type Stakes = { rosterId: number; week: number; opponentRosterId: number; ifWin: StakeBranch; ifLose: StakeBranch };
+export type StakeBranch = { runs: number; playoffPct: number; titlePct: number; byePct: number };
+
+export function simulateSeason(input: SimInput, runs: number, seed = 20_261_018, focus?: { rosterId: number; week?: number; result?: Stakes }): TeamOdds[] {
   const n = input.teams.length;
   const order = input.teams.map((t, i) => ({ t, i })).sort((a, b) => a.t.rosterId - b.t.rosterId);
   const idxByRoster = new Map(input.teams.map((t, i) => [t.rosterId, i]));
@@ -103,6 +107,12 @@ export function simulateSeason(input: SimInput, runs: number, seed = 20_261_018)
   const playoffMeans = new Map<number, Float64Array>();
   for (const w of [...input.playoffWeeks, 17]) playoffMeans.set(w, Float64Array.from({ length: n }, (_, i) => meanFor(i, w)));
   const drawOrder = order.map((o) => o.i);
+  // "What's at stake": the focus team's first scheduled head-to-head, and outcomes by its result.
+  const focusIdx = focus ? idxByRoster.get(focus.rosterId) : undefined;
+  const focusW = focus?.week != null ? input.schedule.findIndex((s) => s.week === focus.week) : 0;
+  const focusPair = focusIdx != null && focusW >= 0 ? regPairs[focusW]?.find(([a, b]) => a === focusIdx || b === focusIdx) : undefined;
+  const branch = { win: { runs: 0, playoff: 0, title: 0, bye: 0 }, lose: { runs: 0, playoff: 0, title: 0, bye: 0 } };
+  let focusWon = false;
   const medianRank = n - Math.floor(n / 2); // ascending index of the (n/2)-th highest score
 
   const wins = new Float64Array(n);
@@ -124,6 +134,7 @@ export function simulateSeason(input: SimInput, runs: number, seed = 20_261_018)
         if (scores[ia] > scores[ib]) wins[ia]++;
         else wins[ib]++;
       }
+      if (w === focusW && focusPair) focusWon = scores[focusIdx!] > scores[focusPair[0] === focusIdx ? focusPair[1] : focusPair[0]];
       if (input.medianGame) {
         sorted.set(scores);
         sorted.sort();
@@ -167,6 +178,24 @@ export function simulateSeason(input: SimInput, runs: number, seed = 20_261_018)
       alive = [...resting, ...winners].sort((x, y) => rank(x) - rank(y));
     }
     if (alive.length === 1) title[alive[0]]++;
+    if (focusPair) {
+      const b = focusWon ? branch.win : branch.lose;
+      b.runs++;
+      const s = seeds.indexOf(focusIdx!);
+      if (s >= 0) b.playoff++;
+      if (s >= 0 && s < byes) b.bye++;
+      if (alive.length === 1 && alive[0] === focusIdx) b.title++;
+    }
+  }
+  if (focus && focusPair) {
+    const toBranch = (x: typeof branch.win): StakeBranch => ({ runs: x.runs, playoffPct: x.runs ? x.playoff / x.runs : 0, titlePct: x.runs ? x.title / x.runs : 0, byePct: x.runs ? x.bye / x.runs : 0 });
+    focus.result = {
+      rosterId: focus.rosterId,
+      week: input.schedule[focusW].week,
+      opponentRosterId: input.teams[focusPair[0] === focusIdx ? focusPair[1] : focusPair[0]].rosterId,
+      ifWin: toBranch(branch.win),
+      ifLose: toBranch(branch.lose),
+    };
   }
 
   return input.teams.map((t, i) => ({

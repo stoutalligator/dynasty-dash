@@ -6,6 +6,7 @@ import { startTransition, useId, useMemo, useState, ViewTransition } from "react
 import { vtName } from "@/components/page-suspense";
 import { PlayerAvatar } from "@/components/avatar";
 import { PlayerDrawer } from "@/components/player-drawer";
+import { Sparkbars } from "@/components/waivers/waiver-explorer";
 import { InjuryBadge, InfoTip, PosBadge, ValueTrend } from "@/components/ui";
 import type { PlayerView } from "@/lib/analysis/types";
 import type { RosterSlot } from "@/lib/league/models";
@@ -197,6 +198,7 @@ export function RosterTable({
               {header("pos", "Pos", "w-12", 1)}
               {header("age", "Age", "w-14 text-right", 1)}
               <th scope="col" className="w-24 px-2 py-2 font-medium">Status</th>
+              <th scope="col" className="hidden w-20 px-2 py-2 text-left font-medium xl:table-cell">Last 8</th>
               {header("ppg", "PPG", "w-20 text-right", -1, "Average fantasy points (league scoring) in completed weeks where the player scored. Source: Sleeper matchups.")}
               {header("total", "Total", "w-16 text-right")}
               {header("snap", "Snap", "w-16 text-right", -1, "Offensive snap share over the last three games played (NFL stats).")}
@@ -210,7 +212,7 @@ export function RosterTable({
             {visible.map((p, i) => {
               const groupRow = grouped && (i === 0 || visible[i - 1].slot !== p.slot) ? (
                 <tr key={`g-${p.slot}`} className="bg-surface-2/50">
-                  <td colSpan={12} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+                  <td colSpan={13} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-3">
                     {SLOT_LABEL[p.slot ?? "bench"]} ({slotCounts.get(p.slot) ?? 0})
                   </td>
                 </tr>
@@ -238,6 +240,7 @@ export function RosterTable({
                   <td className="px-2 py-2"><PosBadge pos={p.position} /></td>
                   <td className={clsx("px-2 py-2 text-right", p.ageRisk ? "text-serious" : "text-ink-2")}>{fmtAge(p.age)}</td>
                   <td className="px-2 py-2"><InjuryBadge injury={p.injury} compact /></td>
+                  <td className="hidden px-2 py-2 xl:table-cell">{p.prod && p.prod.weekly.length > 0 ? <Sparkbars weekly={p.prod.weekly.slice(-8)} /> : null}</td>
                   <td className="px-2 py-2 text-right text-ink">
                     {p.prod && p.prod.activeWeeks > 0 ? fmtPts(p.prod.ppg) : <span className="text-ink-3">—</span>}
                     {p.prod && p.prod.activeWeeks > 0 && <span className="ml-1 text-[10px] text-ink-3">{p.prod.activeWeeks}g</span>}
