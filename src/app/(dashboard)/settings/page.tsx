@@ -104,6 +104,12 @@ async function SettingsContent() {
               ["Sign-in", authEnabled() ? "Password required (APP_PASSWORD)" : "Open: set APP_PASSWORD before deploying"],
               ["Scheduled jobs", cfg.cronSecret ? "Enabled (CRON_SECRET set)" : "CRON_SECRET not set: cron endpoints refuse requests"],
               ["Digest delivery", [cfg.digestWebhookUrl ? "webhook" : null, cfg.ntfyTopic ? "ntfy" : null].filter(Boolean).join(" + ") || "In-app only"],
+              [
+                "Alerts",
+                cfg.digestWebhookUrl || cfg.ntfyTopic
+                  ? "Starter injuries and dropped trade targets, checked with the daily refresh (or /api/cron/alerts)"
+                  : "Off: set DIGEST_WEBHOOK_URL or NTFY_TOPIC",
+              ],
               ["Season simulation", model.odds ? `${model.odds.runs.toLocaleString()} runs (SIM_RUNS)` : "Unavailable"],
             ].map(([k, v]) => (
               <div key={k} className="grid grid-cols-[9rem_1fr] gap-3 py-2">

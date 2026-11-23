@@ -178,7 +178,7 @@ export function RosterTable({
                 <ValueTrend trend={p.valueTrend30} value={p.value} className="justify-end" />
                 <div className="text-[11px] text-ink-3">
                   {p.prod && p.prod.activeWeeks > 0 ? `${fmtPts(p.prod.ppg)} ppg` : "no pts"}
-                  {p.projWeek != null && p.projWeek > 0 && ` · proj ${fmtPts(p.projWeek)}`}
+                  {p.onBye ? " · bye" : p.projWeek != null && p.projWeek > 0 && ` · proj ${fmtPts(p.projWeek)}`}
                   {p.lineupImpact > 0 && ` · −${fmtPts(p.lineupImpact)}`}
                 </div>
               </div>
@@ -243,7 +243,9 @@ export function RosterTable({
                   </td>
                   <td className="px-2 py-2 text-right text-ink-2">{p.prod ? fmtPts(p.prod.total) : "—"}</td>
                   <td className="px-2 py-2 text-right text-ink-2">{p.prod?.snapShareLast3 != null ? `${Math.round(p.prod.snapShareLast3 * 100)}%` : "—"}</td>
-                  <td className="px-2 py-2 text-right text-ink-2">{p.projWeek != null ? fmtPts(p.projWeek) : "—"}</td>
+                  <td className="px-2 py-2 text-right text-ink-2">
+                    {p.onBye ? <span className="rounded bg-surface-3 px-1 py-px text-[10px] font-semibold tracking-wide text-ink-3">BYE</span> : p.projWeek != null ? fmtPts(p.projWeek) : "—"}
+                  </td>
                   <td className="px-2 py-2 text-right text-ink-3">{p.prod ? `${p.prod.weeksStarted}/${p.prod.weeksStarted + p.prod.weeksBenched}` : "—"}</td>
                   <td className="px-2 py-2 text-right">
                     <span className="text-ink">{p.value != null ? fmtInt(p.value) : "—"}</span>

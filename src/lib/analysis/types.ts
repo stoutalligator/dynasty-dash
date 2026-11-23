@@ -60,6 +60,10 @@ export type PlayerView = {
   value: number | null;
   redraftValue: number | null;
   positionRank: number | null;
+  /** NFL bye week, inferred from Sleeper projections (null when unknown). */
+  byeWeek: number | null;
+  /** On bye in the upcoming projection week. */
+  onBye: boolean;
   /** Change in market value over the last 30 days (third-party source only). */
   valueTrend30: number | null;
   valueSource: ValueSource;

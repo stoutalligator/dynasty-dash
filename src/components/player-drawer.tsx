@@ -61,7 +61,7 @@ export function PlayerDrawer({ player: p, teamName, onClose }: { player: PlayerV
             ["PPG", pr && pr.activeWeeks ? fmtPts(pr.ppg) : "—", pr ? `${pr.activeWeeks} games` : ""],
             ["Last 3", fmtPts(pr?.last3Ppg ?? null), "PPG"],
             ["Snap %", pr?.snapShareLast3 != null ? `${Math.round(pr.snapShareLast3 * 100)}` : "—", "last 3"],
-            ["Proj this wk", fmtPts(p.projWeek), "Sleeper"],
+            ["Proj this wk", p.onBye ? "BYE" : fmtPts(p.projWeek), p.byeWeek ? `bye wk ${p.byeWeek}` : "Sleeper"],
             ["Proj ROS", fmtPts(p.projRos, 0), "through finals"],
             [
               "Value",

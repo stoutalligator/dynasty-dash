@@ -83,6 +83,8 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
     return any ? round(sum, 1) : null;
   };
   const projNextFor = (id: string) => projSum(id, projectionWeeks.slice(0, 3));
+  const byes = stats ? inferByeWeeks(stats.projections, (id) => s.players[id]?.nflTeam ?? null) : new Map<string, number>();
+  const byeOf = (nflTeam: string | null) => (nflTeam ? (byes.get(nflTeam) ?? null) : null);
   const projRosFor = (id: string) => projSum(id, projectionWeeks);
   const scoredWeeks = s.weeks.filter((w) => w.complete).length;
 
@@ -156,6 +158,8 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
         redraftValue: v?.redraftValue ?? null,
         positionRank: v?.positionRank ?? null,
         valueTrend30: v?.trend30Day ?? null,
+        byeWeek: byeOf(r.player.nflTeam),
+        onBye: projWeek != null && byeOf(r.player.nflTeam) === projWeek,
         valueSource,
         lineupImpact: impacts.get(r.player.id) ?? 0,
         inBestLineup: inLineup.has(r.player.id),
@@ -405,7 +409,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
     freeAgents.push({
       id, assetId: `player:${id}`, name: p.name, position: p.position, nflTeam: p.nflTeam, age: p.age, yearsExp: p.yearsExp,
       injury: p.injury, mapped: true, rosterId: null, slot: null, starterSlot: null, prod: summarize(production.get(id)),
-      value: v?.value ?? null, redraftValue: v?.redraftValue ?? null, positionRank: v?.positionRank ?? null, valueTrend30: v?.trend30Day ?? null, valueSource, lineupImpact: 0,
+      value: v?.value ?? null, redraftValue: v?.redraftValue ?? null, positionRank: v?.positionRank ?? null, valueTrend30: v?.trend30Day ?? null, byeWeek: byeOf(p.nflTeam), onBye: projWeek != null && byeOf(p.nflTeam) === projWeek, valueSource, lineupImpact: 0,
       inBestLineup: false, ageRisk: p.age != null && p.age >= (AGE_RISK[p.position ?? ""] ?? 99), tags: ["Free agent"],
       projWeek: projFor(id), projNext: projNextFor(id), projRos: projRosFor(id), trendingAdds: trending?.adds.get(id) ?? null,
     });
@@ -492,4 +496,26 @@ export function valuePick(
     return { value: Math.round(covered.value * 0.9 ** years), note: `Extrapolated from ${set.label} ${covered.season} round-${round} value (−10%/yr).` };
   }
   return { value: 0, note: `No ${set.label} value for round ${round} picks.` };
+}
+
+/**
+ * NFL bye weeks inferred from projections: a team is on bye in a week when it has projected
+ * players in other weeks but none in that one. Sleeper publishes no bye endpoint; this matches
+ * the real schedule because every active team has dozens of projected players each week.
+ */
+export function inferByeWeeks(projections: Map<number, Map<string, { pts: number }>>, teamOf: (id: string) => string | null): Map<string, number> {
+  const teamsByWeek = new Map<number, Set<string>>();
+  for (const [w, lines] of projections) {
+    const set = new Set<string>();
+    for (const [id, l] of lines) {
+      if (l.pts <= 0) continue;
+      const t = teamOf(id);
+      if (t) set.add(t);
+    }
+    if (set.size >= 16) teamsByWeek.set(w, set); // ignore sparse/unpublished weeks
+  }
+  const all = new Set([...teamsByWeek.values()].flatMap((x) => [...x]));
+  const out = new Map<string, number>();
+  for (const [w, set] of teamsByWeek) for (const t of all) if (!set.has(t) && !out.has(t)) out.set(t, w);
+  return out;
 }

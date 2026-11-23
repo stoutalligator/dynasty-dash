@@ -3,6 +3,7 @@ import { loadLeagueModel } from "@/lib/analysis/load-model";
 import { isAuthorizedCron } from "@/lib/auth";
 import { resolveActiveLeague } from "@/lib/league/active";
 import { defaultTrades } from "@/lib/server/insights";
+import { runAlerts } from "@/lib/alerts/run";
 
 // Refreshing the player database, stats, projections and history can take a while on a cold cache.
 export const maxDuration = 300;
@@ -18,7 +19,9 @@ export async function GET(request: Request) {
   if (model.myRosterId != null) for (const objective of ["contender", "retool", "rebuild"] as const) defaultTrades(model, prefs, objective);
   const me = model.teams.find((t) => t.team.rosterId === model.myRosterId);
   if (me) defaultTrades(model, prefs, me.strategy.effective, 30);
+  const alerts = await runAlerts(model, prefs).catch((err) => ({ alerts: [], delivery: [], error: String(err) }));
   return Response.json({
+    alerts: alerts.alerts.map((a) => a.text),
     ok: true,
     ms: Date.now() - t0,
     week: model.league.currentWeek,

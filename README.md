@@ -51,6 +51,8 @@ Scheduled jobs come from `vercel.json` (times are UTC):
 | Refresh | daily 11:00 | Refreshes all data and pre-builds trade ideas |
 | Digest | Tuesday 15:00 | Builds the weekly digest and sends it |
 
+**Alerts.** The daily refresh also checks for new injury designations on your lineup and for starred trade targets that were dropped, and pushes them to the digest channels (`DIGEST_WEBHOOK_URL` / `NTFY_TOPIC`). For faster alerts on game days, point any external scheduler (e.g. cron-job.org, hourly) at `/api/cron/alerts` with `Authorization: Bearer <CRON_SECRET>`. Injury designations come from Sleeper's player file, which Sleeper asks apps to download at most daily (use **Settings → Refresh all** to force it).
+
 Vercel's Hobby plan runs each job at most once a day, which is all these need.
 
 What happens on Vercel without a database: the app still works using temporary storage. Preferences, saved trades and digests won't persist, and the app warns about it.
@@ -138,6 +140,9 @@ Sleeper is the source of truth for league settings, rosters, ownership, matchups
 - **Odds:** team pages and the Dashboard show playoff and title odds, the League page has a **Playoff odds** tab, and every trade proposal shows how your odds change (title X% → Y%, playoffs X% → Y%).
 - **Player details:** tap any player name for a drawer with their game log (points, snap share, targets/carries, started or benched), projections, value and status.
 - **Theme:** a System / Light / Dark switch in the sidebar.
+- **Bye weeks** are inferred from Sleeper's projections and shown as **BYE** in projection columns and player details.
+- **Market timing:** recommendations include *sell into the spike* (your players whose value jumped 8%+ in 30 days but barely affect your lineup) and *buy low* (other teams' producers whose value dropped, preferring your weak positions), each linking to the Trade Hub built around that player.
+- **Fast sign-in:** the sign-in page starts loading your league in the background, so the dashboard is usually ready the moment you sign in.
 - **Kickers and defenses** are graded automatically in leagues that start them.
 
 The UI is dark-themed and responsive. Every page has been checked at a 390 px phone width with no horizontal scrolling: wide tables become compact lists and the sidebar becomes a drawer.

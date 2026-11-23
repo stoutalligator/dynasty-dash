@@ -3,7 +3,41 @@ import type { TradeEvaluation } from "@/lib/trades/evaluate";
 import { median } from "./grades";
 import type { LeagueModel, PlayerView, Strategy, TeamAnalysis } from "./types";
 
-export type Recommendation = { title: string; detail: string; kind: "upgrade" | "sell" | "keep" | "target" | "info" };
+export type Recommendation = {
+  title: string;
+  detail: string;
+  kind: "upgrade" | "sell" | "keep" | "target" | "info";
+  /** Optional deep link (e.g. the Trade Hub built around a player). */
+  action?: { label: string; href: string };
+};
+
+/** A 30-day market move worth acting on: at least 300 points and 8% of the player's value. */
+const bigMove = (p: PlayerView) => p.valueTrend30 != null && p.value != null && Math.abs(p.valueTrend30) >= Math.max(300, 0.08 * p.value);
+const tradeHub = (p: PlayerView) => `/trades?asset=${encodeURIComponent(p.assetId)}`;
+const trend = (p: PlayerView) => `${p.valueTrend30! > 0 ? "+" : "−"}${Math.abs(Math.round(p.valueTrend30!)).toLocaleString("en-US")}`;
+
+/**
+ * Market timing from the valuation source's 30-day trend. Sell high: my players whose value just
+ * spiked but who matter little to my lineup. Buy low: other teams' producers whose value dropped,
+ * preferring positions I need.
+ */
+export function marketTiming(model: LeagueModel, team: TeamAnalysis): { sellHigh: PlayerView[]; buyLow: PlayerView[] } {
+  if (model.valuation.kind !== "third-party") return { sellHigh: [], buyLow: [] };
+  const needs = new Set<string>(team.needs.map((n) => n.position));
+  const sellHigh = team.players
+    .filter((p) => bigMove(p) && p.valueTrend30! > 0 && p.lineupImpact < 1.5 && p.slot !== "reserve")
+    .sort((a, b) => b.valueTrend30! / (b.value ?? 1) - a.valueTrend30! / (a.value ?? 1));
+  const buyLow = model.teams
+    .filter((t) => t.team.rosterId !== team.team.rosterId)
+    .flatMap((t) => t.players)
+    .filter((p) => {
+      if (!bigMove(p) || p.valueTrend30! > 0 || (p.value ?? 0) < 1000 || p.ageRisk) return false;
+      const repl = model.replacementPpg[p.position as keyof typeof model.replacementPpg] ?? 0;
+      return (p.prod?.adjPpg ?? 0) >= repl && !(p.injury && /out|ir|pup|sus/i.test(p.injury.status));
+    })
+    .sort((a, b) => Number(needs.has(b.position ?? "")) - Number(needs.has(a.position ?? "")) || a.valueTrend30! / (a.value ?? 1) - b.valueTrend30! / (b.value ?? 1));
+  return { sellHigh, buyLow };
+}
 
 const names = (ps: PlayerView[]) =>
   ps
@@ -26,6 +60,25 @@ export function recommendationsFor(
   const youngCore = tradable.filter((p) => p.age != null && p.age <= 25 && (p.value ?? 0) >= 3000).sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
   const contenders = others.filter((t) => t.strategy.effective === "contender");
   const rebuilders = others.filter((t) => t.strategy.effective === "rebuild");
+
+  const { sellHigh, buyLow } = marketTiming(model, team);
+  const teamName = (rid: number | null) => model.teams.find((t) => t.team.rosterId === rid)?.team.teamName ?? "another team";
+  const sellHighLine: Recommendation[] = sellHigh.length
+    ? [{
+        title: `Sell into the spike: ${sellHigh[0].name}`,
+        detail: `Value ${trend(sellHigh[0])} in 30 days (now ${(sellHigh[0].value ?? 0).toLocaleString("en-US")}) with ${sellHigh[0].lineupImpact > 0 ? `only ${sellHigh[0].lineupImpact.toFixed(1)} adj. PPG of lineup impact` : "no impact on your best lineup"}.${sellHigh.length > 1 ? ` Also rising: ${sellHigh.slice(1, 3).map((p) => `${p.name} (${trend(p)})`).join(", ")}.` : ""}`,
+        kind: "sell",
+        action: { label: `Shop ${sellHigh[0].name.split(" ").slice(-1)[0]}`, href: tradeHub(sellHigh[0]) },
+      }]
+    : [];
+  const buyLowLine: Recommendation[] = buyLow.length
+    ? [{
+        title: `Buy low: ${buyLow[0].name}`,
+        detail: `${buyLow[0].position}, ${teamName(buyLow[0].rosterId)}: value ${trend(buyLow[0])} in 30 days but still producing ${(buyLow[0].prod?.adjPpg ?? 0).toFixed(1)} adj. PPG.${buyLow.length > 1 ? ` Others: ${buyLow.slice(1, 3).map((p) => `${p.name} (${trend(p)})`).join(", ")}.` : ""}`,
+        kind: "target",
+        action: { label: `Find a deal for ${buyLow[0].name.split(" ").slice(-1)[0]}`, href: tradeHub(buyLow[0]) },
+      }]
+    : [];
 
   const needLines = team.needs.map((n) => ({ title: `Upgrade ${n.position}`, detail: n.reason, kind: "upgrade" as const }));
   const worstSlot = team.lineup.assignments
@@ -53,6 +106,7 @@ export function recommendationsFor(
     ...(worstSlot && worstSlot.gap < 0
       ? [{ title: `Weakest lineup slot: ${worstSlot.slot}`, detail: `Scores ${worstSlot.score.toFixed(1)} adj. PPG vs. a league median of ${worstSlot.leagueMed.toFixed(1)} for that slot.`, kind: "upgrade" as const }]
       : []),
+    ...buyLowLine,
     ...(expendable.length ? [{ title: "Use bench value as currency", detail: `Not in your best lineup but carry trade value: ${names(expendable.slice(0, 4))}.`, kind: "sell" as const }] : []),
     ...(team.picks.length ? [{ title: "Picks available to spend", detail: `${team.capital.firsts} firsts and ${team.capital.seconds} seconds (${ordinal(team.capital.rank)} in draft capital). Rebuilders most likely to value picks: ${rebuilders.map((t) => t.team.teamName).join(", ") || "none identified"}.`, kind: "info" as const }] : []),
     ...tradeLine("contender"),
@@ -60,6 +114,8 @@ export function recommendationsFor(
 
   const retool: Recommendation[] = [
     ...(youngCore.length ? [{ title: "Keep the young core", detail: names(youngCore.slice(0, 5)), kind: "keep" as const }] : []),
+    ...sellHighLine,
+    ...buyLowLine,
     ...(sellVets.length ? [{ title: "Sell-high candidates", detail: `Past typical decline age but still valuable: ${names(sellVets.slice(0, 4))}. Contenders: ${contenders.map((t) => t.team.teamName).join(", ") || "none identified"}.`, kind: "sell" as const }] : []),
     ...(expendable.length >= 2 ? [{ title: "Consolidate depth", detail: `${expendable.length} bench players hold value without lineup impact; 2-for-1 deals can upgrade ${team.needs[0]?.position ?? "your weakest spot"}.`, kind: "upgrade" as const }] : []),
     ...needLines.slice(0, 2),
@@ -70,6 +126,7 @@ export function recommendationsFor(
     ...(sellVets.length || tradable.some((p) => (p.age ?? 0) >= 27)
       ? [{ title: "Sell veterans to contenders", detail: `${names((sellVets.length ? sellVets : tradable.filter((p) => (p.age ?? 0) >= 27).sort((a, b) => (b.value ?? 0) - (a.value ?? 0))).slice(0, 4))}. Contenders: ${contenders.map((t) => t.team.teamName).join(", ") || "none identified"}.`, kind: "sell" as const }]
       : []),
+    ...sellHighLine,
     ...(contenders.length
       ? [{ title: "Target contenders' picks", detail: `Picks held by current contenders project later in the round: ${contenders.map((t) => `${t.team.teamName} (${t.capital.firsts} 1sts)`).join(", ")}.`, kind: "target" as const }]
       : []),

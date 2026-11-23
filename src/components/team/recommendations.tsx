@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import { ArrowLeftRight, Info, Shield, TrendingDown, TrendingUp } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import type { Recommendation } from "@/lib/analysis/recommendations";
 import type { Strategy } from "@/lib/analysis/types";
@@ -46,6 +47,11 @@ export function Recommendations({ recs, recommended, limit }: { recs: Record<Str
                   <div className="min-w-0">
                     <div className="text-[13px] font-medium text-ink">{r.title}</div>
                     <div className="mt-0.5 text-[12.5px] leading-relaxed text-ink-2">{r.detail}</div>
+                    {r.action && (
+                      <Link href={r.action.href} className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline">
+                        {r.action.label} →
+                      </Link>
+                    )}
                   </div>
                 </li>
               );

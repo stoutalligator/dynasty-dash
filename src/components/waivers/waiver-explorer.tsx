@@ -127,7 +127,7 @@ export function WaiverExplorer({ candidates, projectionWeek }: { candidates: Wai
                 <Stat label="Last 3" value={fmtPts(pr?.last3Ppg ?? null)} />
                 <Stat label="Snap %" value={pr?.snapShareLast3 != null ? `${Math.round(pr.snapShareLast3 * 100)}` : "—"} sub={pr?.snapTrend != null && Math.abs(pr.snapTrend) >= 0.05 ? `${pr.snapTrend > 0 ? "▲" : "▼"}${Math.round(Math.abs(pr.snapTrend) * 100)}` : undefined} />
                 <Stat label={p.position === "QB" ? "Att/g" : "Opp/g"} value={fmtPts(pr?.oppLast3 ?? null)} />
-                <Stat label={projectionWeek ? `Proj W${projectionWeek}` : "Proj"} value={fmtPts(p.projWeek)} />
+                <Stat label={projectionWeek ? `Proj W${projectionWeek}` : "Proj"} value={p.onBye ? "BYE" : fmtPts(p.projWeek)} />
                 <Stat label="Value" value={p.value != null ? fmtInt(p.value) : "—"} />
               </div>
 

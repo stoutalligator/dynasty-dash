@@ -21,7 +21,22 @@ export async function readDigestHistory(leagueId: string): Promise<Digest[]> {
 /** Post the digest to the configured webhook (Discord/Slack/generic JSON) and/or ntfy topic. */
 export async function deliverDigest(d: Digest, fetchImpl: typeof fetch = fetch): Promise<DeliveryResult[]> {
   const c = getConfig();
-  const text = digestText(d, c.appUrl);
+  return notify(
+    { title: `${d.league}: week ${d.week ?? ""} digest`, text: digestText(d, c.appUrl), path: "/digest", tags: "football" },
+    fetchImpl,
+  );
+}
+
+/**
+ * Send a message to every configured channel: a Discord/Slack/generic webhook (DIGEST_WEBHOOK_URL)
+ * and/or an ntfy topic (NTFY_TOPIC). Text may use **bold** / __underline__ markdown.
+ */
+export async function notify(
+  msg: { title: string; text: string; path?: string; tags?: string; priority?: "default" | "high" },
+  fetchImpl: typeof fetch = fetch,
+): Promise<DeliveryResult[]> {
+  const c = getConfig();
+  const text = msg.text;
   const out: DeliveryResult[] = [];
   if (c.digestWebhookUrl) {
     const isDiscord = /discord(app)?\.com\/api\/webhooks/.test(c.digestWebhookUrl);
@@ -38,7 +53,12 @@ export async function deliverDigest(d: Digest, fetchImpl: typeof fetch = fetch):
     try {
       const res = await fetchImpl(`https://ntfy.sh/${c.ntfyTopic}`, {
         method: "POST",
-        headers: { Title: `${d.league}: week ${d.week ?? ""} digest`, Tags: "football", ...(c.appUrl ? { Click: `${c.appUrl.replace(/\/$/, "")}/digest` } : {}) },
+        headers: {
+          Title: msg.title,
+          Tags: msg.tags ?? "football",
+          ...(msg.priority === "high" ? { Priority: "high" } : {}),
+          ...(c.appUrl && msg.path ? { Click: `${c.appUrl.replace(/\/$/, "")}${msg.path}` } : {}),
+        },
         body: text.replace(/\*\*|__/g, ""),
         signal: AbortSignal.timeout(15_000),
       });

@@ -1,0 +1,20 @@
+import { connection } from "next/server";
+import { loadLeagueModel } from "@/lib/analysis/load-model";
+import { runAlerts } from "@/lib/alerts/run";
+import { isAuthorizedCron } from "@/lib/auth";
+import { resolveActiveLeague } from "@/lib/league/active";
+
+export const maxDuration = 300;
+
+/**
+ * Injury and trade-target alerts. Runs inside the daily refresh too; point an external scheduler
+ * (e.g. hourly on game days) here with `Authorization: Bearer $CRON_SECRET` for faster alerts.
+ */
+export async function GET(request: Request) {
+  await connection();
+  if (!isAuthorizedCron(request.headers.get("authorization"))) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await resolveActiveLeague())) return Response.json({ ok: true, skipped: "No league selected yet (visit /setup)." });
+  const { model, prefs } = await loadLeagueModel({ refresh: "league" });
+  const { alerts, delivery } = await runAlerts(model, prefs);
+  return Response.json({ ok: true, alerts: alerts.map((a) => a.text), delivery });
+}
