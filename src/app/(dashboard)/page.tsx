@@ -9,7 +9,8 @@ import { Recommendations } from "@/components/team/recommendations";
 import { PicksCard, PositionGradesCard, StrategyCard, TeamHeader, TeamStatTiles } from "@/components/team/team-panels";
 import { ProposalSummary } from "@/components/trades/proposal-summary";
 import { ValueMoversCard } from "@/components/team/value-movers";
-import { Card, CardHeader, InjuryBadge, Notice, PosBadge } from "@/components/ui";
+import { Card, CardHeader, InjuryBadge, Notice, PosBadge, Skeleton } from "@/components/ui";
+import { setImmediate as yieldToStream } from "node:timers/promises";
 import { getLeague, myTeam } from "@/lib/server/data";
 import { defaultTrades, myRecommendations } from "@/lib/server/insights";
 import { buildWaiverBoard } from "@/lib/analysis/waivers";
@@ -18,7 +19,7 @@ import { fmtPts } from "@/lib/format";
 import { tradeWindow, tradeWindowNote } from "@/lib/league/trade-window";
 
 async function Dashboard() {
-  const { model, prefs } = await getLeague();
+  const { model } = await getLeague();
   const t = myTeam(model);
   if (!t) {
     return (
@@ -27,10 +28,6 @@ async function Dashboard() {
       </Notice>
     );
   }
-  const recs = myRecommendations(model, prefs);
-  const tw = tradeWindow(model.league);
-  const tradeNote = tradeWindowNote(tw);
-  const trades = defaultTrades(model, prefs, t.strategy.effective).slice(0, 3);
   const injured = t.players.filter((p) => p.injury && p.slot !== "taxi").sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
   const errors = model.issues.filter((i) => i.level === "error");
   const waiverTop = buildWaiverBoard(model, t, model.league.waiverBudget)
@@ -49,36 +46,9 @@ async function Dashboard() {
 
       <div className="mt-5 grid gap-5 xl:grid-cols-3">
         <div className="space-y-5 xl:col-span-2">
-          {recs && (
-            <Card>
-              <CardHeader title="Recommended next actions" subtitle="Grounded in your roster, the league, and the trade engine" action={<Link href="/team" className="text-xs text-accent hover:underline">Full analysis →</Link>} />
-              <Recommendations recs={recs} recommended={t.strategy.effective} limit={4} />
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader
-              title="Best trade opportunities"
-              subtitle={`Objective: ${t.strategy.effective} · ranked by benefit to you, with the partner's incentives weighed in`}
-              action={<Link href="/trades" className="text-xs text-accent hover:underline">Trade Hub →</Link>}
-            />
-            {tradeNote && (
-              <div className="px-4 pb-3">
-                <Notice level={tw.state === "open" ? "info" : "warning"}>{tradeNote}</Notice>
-              </div>
-            )}
-            {trades.length ? (
-              <div className="grid gap-3 px-4 pb-4 md:grid-cols-2 2xl:grid-cols-3">
-                {trades.map((e) => (
-                  <div key={e.id} className="rounded-lg border border-line p-3">
-                    <ProposalSummary e={e} compact />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="px-4 pb-4 text-sm text-ink-3">No proposals met the realism filters. Try other objectives in the Trade Hub.</p>
-            )}
-          </Card>
+          <Suspense fallback={<TradeCardsSkeleton />}>
+            <DashboardTradeCards />
+          </Suspense>
 
           <Card>
             <CardHeader title="Standings" action={<Link href="/league" className="text-xs text-accent hover:underline">League →</Link>} />
@@ -138,6 +108,75 @@ async function Dashboard() {
           </Card>
         </div>
       </div>
+    </>
+  );
+}
+
+/**
+ * Recommendations and trade ideas need the trade engine and season simulation, which can take a
+ * moment on a cold server. They stream in after the rest of the dashboard is on screen.
+ */
+async function DashboardTradeCards() {
+  const { model, prefs } = await getLeague();
+  const t = myTeam(model);
+  if (!t) return null;
+  // Yield once so the dashboard shell flushes before the (synchronous) trade search runs.
+  await yieldToStream();
+  const recs = myRecommendations(model, prefs);
+  const tw = tradeWindow(model.league);
+  const tradeNote = tradeWindowNote(tw);
+  const trades = defaultTrades(model, prefs, t.strategy.effective).slice(0, 3);
+  return (
+    <>
+          {recs && (
+            <Card>
+              <CardHeader title="Recommended next actions" subtitle="Grounded in your roster, the league, and the trade engine" action={<Link href="/team" className="text-xs text-accent hover:underline">Full analysis →</Link>} />
+              <Recommendations recs={recs} recommended={t.strategy.effective} limit={4} />
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader
+              title="Best trade opportunities"
+              subtitle={`Objective: ${t.strategy.effective} · ranked by benefit to you, with the partner's incentives weighed in`}
+              action={<Link href="/trades" className="text-xs text-accent hover:underline">Trade Hub →</Link>}
+            />
+            {tradeNote && (
+              <div className="px-4 pb-3">
+                <Notice level={tw.state === "open" ? "info" : "warning"}>{tradeNote}</Notice>
+              </div>
+            )}
+            {trades.length ? (
+              <div className="grid gap-3 px-4 pb-4 md:grid-cols-2 2xl:grid-cols-3">
+                {trades.map((e) => (
+                  <div key={e.id} className="rounded-lg border border-line p-3">
+                    <ProposalSummary e={e} compact />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="px-4 pb-4 text-sm text-ink-3">No proposals met the realism filters. Try other objectives in the Trade Hub.</p>
+            )}
+          </Card>
+    </>
+  );
+}
+
+function TradeCardsSkeleton() {
+  return (
+    <>
+      <Card>
+        <CardHeader title="Recommended next actions" subtitle="Running the trade engine…" />
+        <div className="space-y-2 px-4 pb-4">
+          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
+        </div>
+      </Card>
+      <Card>
+        <CardHeader title="Best trade opportunities" subtitle="Simulating odds for each idea…" />
+        <div className="grid gap-3 px-4 pb-4 md:grid-cols-2">
+          {[0, 1].map((i) => <Skeleton key={i} className="h-44 w-full" />)}
+        </div>
+      </Card>
     </>
   );
 }

@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { warmInBackground } from "@/lib/server/warm";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Sign in" };
 
 async function Form({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
   const { next, error } = await searchParams;
+  // Start loading league data now, so the dashboard is ready by the time the password is entered.
+  warmInBackground();
   // Only allow same-site relative redirects.
-  const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  const safeNext = next && /^\/(?![/\\])/.test(next) ? next : "/";
   return <LoginForm next={safeNext} error={error === "1"} />;
 }
 

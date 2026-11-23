@@ -4,7 +4,12 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { checkPassword, createSessionToken, SESSION_COOKIE, SESSION_DAYS } from "@/lib/auth";
 
-export async function login(_prev: { error: string | null }, form: FormData): Promise<{ error: string | null }> {
+/**
+ * Check the password and set the session cookie. Returns where to go instead of redirecting:
+ * a server-side redirect would render the whole dashboard inside this response, keeping the
+ * button on "Signing in…" until it was ready. The client navigates and streams the page instead.
+ */
+export async function login(_prev: { error: string | null; next?: string }, form: FormData): Promise<{ error: string | null; next?: string }> {
   const password = String(form.get("password") ?? "");
   const next = String(form.get("next") ?? "/");
   if (!checkPassword(password)) {
@@ -19,7 +24,7 @@ export async function login(_prev: { error: string | null }, form: FormData): Pr
     path: "/",
     maxAge: SESSION_DAYS * 86400,
   });
-  redirect(safeNext(next));
+  return { error: null, next: safeNext(next) };
 }
 
 /** Same-site path only: rejects "//host" and "/\host" (browsers treat a backslash like a slash). */
