@@ -4,8 +4,7 @@ import { connection } from "next/server";
 import { DigestActions } from "@/components/digest-actions";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { PageSuspense } from "@/components/page-suspense";
-import { Card, CardHeader, Notice, PageTitle } from "@/components/ui";
-import { getConfig } from "@/lib/config";
+import { Card, CardHeader, PageTitle } from "@/components/ui";
 import { readDigestHistory, readLatestDigest } from "@/lib/digest/run";
 import { fmtDateTime } from "@/lib/format";
 import { getLeague } from "@/lib/server/data";
@@ -16,23 +15,16 @@ export const metadata: Metadata = { title: "Weekly digest" };
 
 async function DigestContent() {
   await connection();
-  const c = getConfig();
   const active = await resolveActiveLeague();
   if (!active) redirect("/setup");
   const { model } = await getLeague();
   const owner = { leagueId: model.league.id, rosterId: model.myRosterId };
   const [digest, history] = await Promise.all([readLatestDigest(owner), readDigestHistory(owner)]);
-  const channels = [c.digestWebhookUrl ? "webhook" : null, c.ntfyTopic ? `ntfy (${c.ntfyTopic})` : null].filter(Boolean);
   return (
     <>
-      <PageTitle title="Weekly digest" subtitle="Waiver fits, injuries, trade ideas and league changes, compared with the previous digest">
+      <PageTitle title="Weekly digest" subtitle="A recap of waiver fits, injuries, trade ideas and league changes, compared with your previous digest. Rebuild it anytime.">
         <DigestActions />
       </PageTitle>
-      <div className="mb-5">
-        <Notice level="info">
-          Built for your team each time you press “Build now”. The scheduled Tuesday digest is sent only for the site owner&apos;s league (SLEEPER_LEAGUE_ID){channels.length ? ` to ${channels.join(" and ")}` : ""}.
-        </Notice>
-      </div>
       {!digest ? (
         <Card>
           <p className="px-4 py-10 text-center text-sm text-ink-3">No digest yet. Use “Build now” to create the first one.</p>

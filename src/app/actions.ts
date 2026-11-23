@@ -187,10 +187,10 @@ export async function findThreeTeamTrades(options: unknown): Promise<Result<Thre
   }
 }
 
-/** Rebuild the visitor's digest. Sending is reserved for the scheduled job (owner's league only). */
+/** Rebuild the visitor's in-app digest. */
 export async function generateDigest(): Promise<Result<null>> {
   try {
-    await runDigest({ deliver: false });
+    await runDigest();
     refresh();
     return { ok: true, data: null };
   } catch (err) {

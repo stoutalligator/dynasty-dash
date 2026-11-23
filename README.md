@@ -8,7 +8,7 @@
 - **Studies three seasons of league history**, including every trade and draft.
 - **Suggests realistic two- and three-team trades**, with the reasoning shown.
 - **Simulates the rest of the season** to estimate every team's playoff and title odds, and shows how each trade would change yours.
-- **Sends a weekly digest** to Discord, Slack or your phone.
+- **Builds a weekly digest** in the app: waiver fits, injuries, trade ideas and what changed since last time.
 
 **Sign in with your Sleeper username**: there's no site password. Anyone (you, your league-mates, friends in other leagues) enters a Sleeper username, picks a league, and lands on the dashboard; your team is recognised from the account. The choice is kept in a browser-session cookie only, so it's forgotten when the browser closes and nothing about who visited is stored on the server. Trade block, untouchables, targets, saved trades, strategy overrides and digests are stored per team in each league, so league-mates don't share them. Nothing is hardcoded to one league: format, scoring, roster slots, baselines and history all come from the chosen league's live data.
 
@@ -35,24 +35,20 @@ No Sleeper account, API key, database or paid service is needed locally: data is
    |---|---|
    | `CRON_SECRET` | A long random string. Vercel Cron sends it automatically. |
    | `DATABASE_URL` | Set by the Neon integration. |
-   | `DIGEST_WEBHOOK_URL` *(optional)* | Discord or Slack incoming-webhook URL for the weekly digest. |
-   | `NTFY_TOPIC` *(optional)* | An unguessable ntfy.sh topic for phone push notifications. |
 
 4. **Deploy.** The table is created on first use. To check it from your machine, put the same `DATABASE_URL` in `.env` and run `npm run db:setup`.
-5. **Open the site and choose your league** (Sleeper username → pick the league). The choice is saved in the database.
-6. **Warm the cache** once, so the next visit is fast:
+5. **Open the site, enter your Sleeper username and pick a league.** Share the link: anyone can sign in with their own username.
+6. *(Optional)* **Warm the cache** once, so the first visit is fast (needs `SLEEPER_LEAGUE_ID`):
    `curl -H "Authorization: Bearer <CRON_SECRET>" https://<your-app>.vercel.app/api/cron/refresh`
 
 Scheduled jobs come from `vercel.json` (times are UTC):
 
 | Job | Schedule | What it does |
 |---|---|---|
-| Refresh | daily 11:00 | Refreshes all data and pre-builds trade ideas |
-| Digest | Tuesday 15:00 | Builds the weekly digest and sends it |
+| Refresh | daily 11:00 | Refreshes the player database, values and history, records the daily snapshot, and pre-builds trade ideas for `SLEEPER_LEAGUE_ID` (skipped if unset) |
 
-**Alerts.** The daily refresh also checks for new injury designations on your lineup and for starred trade targets that were dropped, and pushes them to the digest channels (`DIGEST_WEBHOOK_URL` / `NTFY_TOPIC`). For faster alerts on game days, point any external scheduler (e.g. cron-job.org, hourly) at `/api/cron/alerts` with `Authorization: Bearer <CRON_SECRET>`. Injury designations come from Sleeper's player file, which Sleeper asks apps to download at most daily (use **Settings → Refresh all** to force it).
 
-Vercel's Hobby plan runs each job at most once a day, which is all these need.
+Vercel's Hobby plan runs each job at most once a day, which is all this needs.
 
 What happens on Vercel without a database: the app still works using temporary storage. Preferences, saved trades and digests won't persist, and the app warns about it.
 
@@ -60,8 +56,8 @@ What happens on Vercel without a database: the app still works using temporary s
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `SLEEPER_LEAGUE_ID` | — | Your league for scheduled jobs (daily refresh, weekly digest, alerts). Visitors choose their own league at sign-in. |
-| `MY_ROSTER_ID` / `EXPECTED_TEAM_NAME` | — | Your team in that league (for the digest and alerts). |
+| `SLEEPER_LEAGUE_ID` | — | Optional: a league the daily refresh pre-warms each morning. Visitors choose their own league at sign-in. |
+| `MY_ROSTER_ID` / `EXPECTED_TEAM_NAME` | — | Optional: your team in that league (carries over settings saved before per-team storage). |
 | `VALUATION_PROVIDER` | `fantasycalc` | `fantasycalc` (free third-party dynasty values) or `none` (internal estimate only). |
 | `FUTURE_PICK_SEASONS` | `3` | How many upcoming rookie drafts to show pick ownership for. |
 | `SIM_RUNS` | `10000` | Simulated seasons for playoff/title odds. Each trade proposal uses 3,000 runs. |
@@ -70,8 +66,6 @@ What happens on Vercel without a database: the app still works using temporary s
 | `UPSTASH_REDIS_REST_URL` / `_TOKEN` | — | Optional Redis alternative (`KV_REST_API_*` also accepted). |
 | `CACHE_DIR` / `DATA_DIR` | `.cache` / `data` | Local file storage when no database is configured (gitignored). |
 | `CRON_SECRET` | — | Bearer secret required by `/api/cron/*`. |
-| `DIGEST_WEBHOOK_URL` / `NTFY_TOPIC` | — | Digest delivery: Discord or Slack webhook, and/or ntfy push. |
-| `APP_URL` | Vercel URL | Base URL for links in the digest. |
 | `LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error` structured JSON logs. |
 
 ## Scripts
@@ -128,7 +122,7 @@ Sleeper is the source of truth for league settings, rosters, ownership, matchups
 | **Draft Picks** | Ownership matrix by team × season × round, traded-pick list, estimated values. |
 | **Analytics** | Weekly score vs. league median, age vs. asset value, lineup efficiency, positional heatmap, weekly scores, production left on benches, and a **model check** against past seasons. |
 | **History** | Champions and final standings for every season, manager trading profiles, trade ledger valued with hindsight (traded picks resolved to the players drafted with them), and a who-trades-with-whom matrix. |
-| **Digest** | The latest weekly digest, previous weeks, and "build / send now" buttons. |
+| **Digest** | The latest weekly recap for your team, previous weeks, and a "Build now" button. |
 | **Choose league** (`/setup`) | Find your leagues by Sleeper username (dynasty first), or open any league by ID and pick your team (or view only). Recent leagues are one tap away; the sidebar's league chip opens it. |
 | **Settings** | Config verification, storage / sign-in / cron / digest status, per-source freshness, refresh, valuation provider, appearance, strategy overrides for every team, data issues, sign out. |
 
@@ -237,7 +231,7 @@ The digest is built from the same model and compared with the previous digest. I
 - teams whose buy/sell posture changed
 - the trade-deadline countdown and title favorites (no trade ideas once trades are locked)
 
-It is stored in the database and posted to Discord/Slack (`DIGEST_WEBHOOK_URL`) and/or ntfy (`NTFY_TOPIC`).
+It is stored in the database per team and shown on the Digest page; rebuild it anytime.
 
 ### Fallback valuation
 
@@ -256,7 +250,7 @@ src/
     cache/file-cache.ts   Read-through data cache over the store: TTLs, stale fallback, in-flight de-dupe
     auth.ts               Cron secret check
     sim/                  Season Monte Carlo (seeded, common random numbers) and odds-for-trades
-    digest/               Weekly digest builder, storage and delivery (Discord/Slack/ntfy)
+    digest/               Weekly digest builder and storage (shown in the app)
     sleeper/              HTTP client (timeouts, retries, validation), schemas, endpoints
     players/              Player DB normalization + roster/manager mapping (shared by script and site)
     league/               Domain models, snapshot loader, pick ownership, audit report

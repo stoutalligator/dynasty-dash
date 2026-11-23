@@ -126,15 +126,3 @@ export function buildDigest(model: LeagueModel, trades: TradeEvaluation[], previ
   };
 }
 
-/** Plain-text rendering for webhooks and push notifications. */
-export function digestText(d: Digest, appUrl?: string): string {
-  const lines = [`**${d.league}, week ${d.week ?? "?"} digest**`, d.headline, ""];
-  for (const s of d.sections) {
-    lines.push(`__${s.title}__`);
-    if (!s.items.length) lines.push(`- ${s.empty ?? "Nothing new."}`);
-    for (const i of s.items) lines.push(`- ${i.tag === "new" ? "[new] " : ""}${i.title}${i.detail ? ` (${i.detail})` : ""}`);
-    lines.push("");
-  }
-  if (appUrl) lines.push(`${appUrl.replace(/\/$/, "")}/digest`);
-  return lines.join("\n").trim();
-}

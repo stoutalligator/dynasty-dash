@@ -3,7 +3,6 @@ import { loadLeagueModel } from "@/lib/analysis/load-model";
 import { isAuthorizedCron } from "@/lib/auth";
 import { defaultLeague } from "@/lib/league/active";
 import { defaultTrades } from "@/lib/server/insights";
-import { runAlerts } from "@/lib/alerts/run";
 import { recordSnapshot } from "@/lib/snapshots/store";
 
 // Refreshing the player database, stats, projections and history can take a while on a cold cache.
@@ -14,7 +13,7 @@ export async function GET(request: Request) {
   await connection();
   if (!isAuthorizedCron(request.headers.get("authorization"))) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const active = defaultLeague();
-  if (!active) return Response.json({ ok: true, skipped: "Set SLEEPER_LEAGUE_ID (and MY_ROSTER_ID) for scheduled jobs." });
+  if (!active) return Response.json({ ok: true, skipped: "Optional: set SLEEPER_LEAGUE_ID to pre-warm a league daily." });
   const t0 = Date.now();
   const { model, prefs } = await loadLeagueModel({ refresh: "all", active });
   // Pre-build the trade ideas the Dashboard, My Team and Trade Hub ask for (same keys as the pages).
@@ -22,9 +21,7 @@ export async function GET(request: Request) {
   const me = model.teams.find((t) => t.team.rosterId === model.myRosterId);
   if (me) defaultTrades(model, prefs, me.strategy.effective, 30);
   await recordSnapshot(model);
-  const alerts = await runAlerts(model, prefs).catch((err) => ({ alerts: [], delivery: [], error: String(err) }));
   return Response.json({
-    alerts: alerts.alerts.map((a) => a.text),
     ok: true,
     ms: Date.now() - t0,
     week: model.league.currentWeek,

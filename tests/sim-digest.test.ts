@@ -1,11 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { backtestSeasons, spearman } from "@/lib/analysis/backtest";
 import { gradedPositions } from "@/lib/analysis/lineup";
 import type { HistoricalSeason } from "@/lib/history/load";
 import { buildSeasonSim, oddsDelta, pooledWeeklySd } from "@/lib/sim/context";
 import { seedTeams, simulateSeason, type SimInput } from "@/lib/sim/season";
 import type { StatLine } from "@/lib/stats/scoring";
-import { buildDigest, digestText } from "@/lib/digest/build";
+import { buildDigest } from "@/lib/digest/build";
 import type { SleeperLeague } from "@/lib/sleeper/schemas";
 import { model, TEAMS } from "./league-fixture";
 
@@ -135,22 +135,6 @@ describe("digest", () => {
     const d2 = buildDigest(model, [], flipped);
     const league = d2.sections.find((s) => s.key === "league")!;
     expect(league.items.some((i) => i.tag === "new" && i.title.includes("contender →"))).toBe(true);
-    const text = digestText(d2, "https://dash.example.com");
-    expect(text).toContain("Around the league");
-    expect(text.endsWith("https://dash.example.com/digest")).toBe(true);
   });
 
-  it("delivers to Discord and ntfy", async () => {
-    vi.stubEnv("SLEEPER_LEAGUE_ID", "123");
-    vi.stubEnv("DIGEST_WEBHOOK_URL", "https://discord.com/api/webhooks/1/abc");
-    vi.stubEnv("NTFY_TOPIC", "dynasty-test-topic");
-    vi.stubEnv("STORAGE", "file");
-    const { deliverDigest } = await import("@/lib/digest/run");
-    const fetchImpl = vi.fn(async () => new Response("ok")) as unknown as typeof fetch;
-    const res = await deliverDigest(buildDigest(model, [], null), fetchImpl);
-    expect(res.map((r) => `${r.channel}:${r.ok}`)).toEqual(["discord:true", "ntfy:true"]);
-    const discordBody = JSON.parse(String((fetchImpl as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0][1].body));
-    expect(discordBody.content.length).toBeLessThanOrEqual(2000);
-    vi.unstubAllEnvs();
-  });
 });

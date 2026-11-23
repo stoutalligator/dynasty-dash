@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createStores, type Stores } from "@/lib/store";
 
 const envSchema = z.object({
-  /** The owner's league for scheduled jobs (refresh, digest, alerts); visitors choose in the app. */
+  /** Optional league the daily refresh job pre-warms; visitors choose their own league in the app. */
   SLEEPER_LEAGUE_ID: z
     .string()
     .regex(/^\d+$/, "SLEEPER_LEAGUE_ID must be a numeric Sleeper league id")
@@ -24,9 +24,6 @@ const envSchema = z.object({
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
   CRON_SECRET: z.string().min(16).optional(),
-  DIGEST_WEBHOOK_URL: z.string().url().optional(),
-  NTFY_TOPIC: z.string().regex(/^[\w-]{6,64}$/).optional(),
-  APP_URL: z.string().url().optional(),
   SIM_RUNS: z.coerce.number().int().min(500).max(50_000).default(10_000),
 });
 
@@ -41,9 +38,6 @@ export type AppConfig = {
   dataDir: string;
   storage: Stores;
   cronSecret: string | undefined;
-  digestWebhookUrl: string | undefined;
-  ntfyTopic: string | undefined;
-  appUrl: string | undefined;
   simRuns: number;
 };
 
@@ -83,9 +77,6 @@ export function getConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       onVercel: !!env.VERCEL,
     }),
     cronSecret: e.CRON_SECRET,
-    digestWebhookUrl: e.DIGEST_WEBHOOK_URL,
-    ntfyTopic: e.NTFY_TOPIC,
-    appUrl: e.APP_URL ?? (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : undefined),
     simRuns: e.SIM_RUNS,
   };
   if (env === process.env) cached = config;
