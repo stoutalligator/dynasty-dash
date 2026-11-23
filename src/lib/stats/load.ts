@@ -61,7 +61,11 @@ export async function loadStatsBundle(opts: {
     opts.completedWeeks.map(async (w) => {
       const key = `stats-${opts.season}-regular-w${w}`;
       // The latest completed week can still receive stat corrections; older weeks rarely change.
-      const c = await cache.getOrFetch(key, () => client.weeklyStats(opts.season, w), { ttlMs: w === last ? 60 * MIN : 24 * 60 * MIN, force: opts.force });
+      const c = await cache.getOrFetch(key, () => client.weeklyStats(opts.season, w), {
+        ttlMs: w === last ? 60 * MIN : 24 * 60 * MIN,
+        force: opts.force,
+        staleWhileRevalidateMs: w === last ? undefined : 7 * 24 * 60 * MIN,
+      });
       return { w, key, c };
     }),
   );
@@ -69,7 +73,11 @@ export async function loadStatsBundle(opts: {
     opts.projectionWeeks.map(async (w) => {
       const key = `projections-${opts.season}-regular-w${w}`;
       const past = opts.upcomingFrom != null && w < opts.upcomingFrom;
-      const c = await cache.getOrFetch(key, () => client.weeklyProjections(opts.season, w), { ttlMs: past ? 7 * 24 * 60 * MIN : 6 * 60 * MIN, force: opts.force && !past });
+      const c = await cache.getOrFetch(key, () => client.weeklyProjections(opts.season, w), {
+        ttlMs: past ? 7 * 24 * 60 * MIN : 6 * 60 * MIN,
+        force: opts.force && !past,
+        staleWhileRevalidateMs: 2 * 24 * 60 * MIN,
+      });
       return { w, key, c };
     }),
   );
@@ -101,8 +109,8 @@ export async function loadTrending(opts: { force?: boolean; client?: SleeperClie
   const client = opts.client ?? createSleeperClient();
   try {
     const [adds, drops] = await Promise.all([
-      getCache().getOrFetch("trending-add-48h", () => client.trending("add", 48, 200), { ttlMs: 30 * MIN, force: opts.force }),
-      getCache().getOrFetch("trending-drop-48h", () => client.trending("drop", 48, 200), { ttlMs: 30 * MIN, force: opts.force }),
+      getCache().getOrFetch("trending-add-48h", () => client.trending("add", 48, 200), { ttlMs: 30 * MIN, force: opts.force, staleWhileRevalidateMs: 6 * 60 * MIN }),
+      getCache().getOrFetch("trending-drop-48h", () => client.trending("drop", 48, 200), { ttlMs: 30 * MIN, force: opts.force, staleWhileRevalidateMs: 6 * 60 * MIN }),
     ]);
     return {
       adds: new Map(adds.data.map((t) => [t.player_id, t.count])),

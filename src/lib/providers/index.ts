@@ -10,6 +10,8 @@ const PROVIDERS: Record<string, ValuationProvider> = {
   fantasycalc: fantasyCalcProvider,
 };
 
+export const VALUATION_TTL_MS = 6 * 3600_000;
+
 export type ProviderStatus = {
   configured: string;
   active: string | null;
@@ -33,9 +35,12 @@ export async function loadExternalValuations(
   }
   const key = `valuations-${provider.id}-${ctx.dynasty === false ? "redraft" : "dynasty"}-${ctx.superflex ? "sf" : "1qb"}-${ctx.teams}-${ctx.receptionPoints}`;
   try {
+    // Market values move daily (more around the trade deadline and rookie drafts): refresh every
+    // 6 hours, serve the last copy instantly while refreshing, and refetch on every manual Refresh.
     const cached = await getCache().getOrFetch(key, () => provider.fetch(ctx), {
-      ttlMs: 12 * 3600_000,
+      ttlMs: VALUATION_TTL_MS,
       force: opts.force,
+      staleWhileRevalidateMs: 3 * 24 * 3600_000,
     });
     return {
       set: { ...cached.data, fetchedAt: cached.fetchedAt },

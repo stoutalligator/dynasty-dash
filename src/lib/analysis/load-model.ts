@@ -38,7 +38,7 @@ export async function loadLeagueModel(opts: { refresh?: RefreshScope } = {}): Pr
   const [{ set, status }, prefs, stats, trending, history] = await Promise.all([
     loadExternalValuations(
       { superflex: league.format.superflex, receptionPoints: league.format.receptionPoints, teams: snapshot.teams.length, dynasty: league.leagueType !== 0 },
-      { force: opts.refresh === "all" },
+      { force },
     ),
     readPrefs(active.leagueId),
     loadStatsBundle({ season: league.season, completedWeeks, projectionWeeks, upcomingFrom: league.currentWeek ?? undefined, scoring: league.scoringSettings, force }).catch((err) => {
@@ -88,11 +88,17 @@ export async function loadLeagueModel(opts: { refresh?: RefreshScope } = {}): Pr
   const extra = [...(stats?.issues ?? []), ...(history?.issues ?? [])];
   const storageWarning = getConfig().storage.warning;
   if (storageWarning) extra.push({ level: "warning", code: "storage-ephemeral", message: storageWarning });
+  if (set && status.stale) extra.push({ level: "warning", code: "valuation-stale", message: `${status.configured} values could not be refreshed (${status.error}); showing values from ${status.fetchedAt}.` });
   if (!set && status.error) extra.push({ level: "warning", code: "valuation-unavailable", message: `${status.configured} valuations unavailable (${status.error}); using the internal estimate.` });
   if (!stats || stats.stats.size === 0) extra.push({ level: "warning", code: "stats-fallback", message: "Weekly NFL stats unavailable; production uses league matchups (rostered players only)." });
   if (!trending) extra.push({ level: "info", code: "trending-unavailable", message: "Sleeper trending adds could not be loaded." });
   model.issues = [...model.issues, ...extra];
-  if (stats) model.freshness = { ...model.freshness, ...stats.freshness };
+  model.freshness = {
+    ...model.freshness,
+    ...(stats?.freshness ?? {}),
+    ...(set && status.fetchedAt ? { valuations: { fetchedAt: status.fetchedAt, source: "cache" as const, stale: status.stale, ...(status.error ? { error: status.error } : {}) } } : {}),
+    ...(trending ? { trending: { fetchedAt: trending.fetchedAt, source: "cache" as const, stale: false } } : {}),
+  };
   memo.set(active.leagueId, { key, snapshot, model });
   return { model, snapshot, prefs };
 }

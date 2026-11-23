@@ -70,7 +70,8 @@ export async function getPlayerDb(opts: { force?: boolean; config?: AppConfig; c
       });
       return normalizePlayerDb(raw);
     },
-    { ttlMs: TTL.players, force: opts.force },
+    // Sleeper asks clients to fetch this ~15 MB file at most daily; serve the cached copy while refreshing.
+    { ttlMs: TTL.players, force: opts.force, staleWhileRevalidateMs: 6 * 24 * HOUR },
   );
 }
 
@@ -158,7 +159,12 @@ export async function loadLeagueSnapshot(opts: LoadOptions = {}): Promise<League
   const schedResults = await Promise.allSettled(
     scheduleWeeks.map((w) =>
       cache
-        .getOrFetch(k(`matchups-${w}`), () => client.matchups(id, w), { ttlMs: w === currentWeek ? TTL.currentWeek : TTL.pastWeek, force })
+        .getOrFetch(k(`matchups-${w}`), () => client.matchups(id, w), {
+          ttlMs: w === currentWeek ? TTL.currentWeek : TTL.pastWeek,
+          force,
+          // Future pairings rarely change; don't make a visitor wait on them.
+          staleWhileRevalidateMs: w === currentWeek ? undefined : 7 * 24 * HOUR,
+        })
         .then((c) => ({ w, data: c.data })),
     ),
   );

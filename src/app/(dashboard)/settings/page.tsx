@@ -26,6 +26,8 @@ const SOURCE_LABEL: Record<string, string> = {
   matchups: "Matchups & scoring",
   stats: "NFL weekly stats (all players)",
   projections: "Sleeper projections",
+  valuations: "Player values",
+  trending: "Sleeper trending adds",
 };
 
 async function SettingsContent() {

@@ -30,6 +30,8 @@ type SimContext = {
   liteById: Map<string, PlayerLite>;
   tradeRuns: number;
   baselineTrade: Map<number, TeamOdds> | null;
+  /** The same trade often appears under several objectives; its odds are computed once. */
+  deltas: Map<string, Map<number, OddsDelta>>;
 };
 
 const registry = new WeakMap<LeagueModel, SimContext>();
@@ -122,6 +124,7 @@ export function buildSeasonSim(opts: {
     liteById,
     tradeRuns: opts.tradeRuns ?? 3000,
     baselineTrade: null,
+    deltas: new Map(),
     input: { teams: [], schedule: opts.schedule, playoffWeeks, playoffTeams: lg.playoffTeams, medianGame: lg.medianGame, divisionWinnersSeedFirst: lg.divisions.length > 0, weeksPerRound, sd },
   };
   const simTeam = (rosterId: number, players: PlayerLite[]): SimTeam => {
@@ -166,6 +169,11 @@ export function buildSeasonSim(opts: {
 export function oddsDelta(model: LeagueModel, changes: { rosterId: number; out: string[]; in: string[] }[]): Map<number, OddsDelta> | null {
   const ctx = registry.get(model) as (SimContext & { simTeam: (rid: number, p: PlayerLite[]) => SimTeam }) | undefined;
   if (!ctx) return null;
+  const key = JSON.stringify(
+    [...changes].sort((a, b) => a.rosterId - b.rosterId).map((c) => [c.rosterId, [...c.out].sort(), [...c.in].sort()]),
+  );
+  const hit = ctx.deltas.get(key);
+  if (hit) return hit;
   ctx.baselineTrade ??= new Map(simulateSeason(ctx.input, ctx.tradeRuns).map((o) => [o.rosterId, o]));
   const teams = ctx.input.teams.map((t) => {
     const c = changes.find((x) => x.rosterId === t.rosterId);
@@ -178,11 +186,13 @@ export function oddsDelta(model: LeagueModel, changes: { rosterId: number; out: 
     return ctx.simTeam(t.rosterId, players);
   });
   const after = new Map(simulateSeason({ ...ctx.input, teams }, ctx.tradeRuns).map((o) => [o.rosterId, o]));
-  return new Map(
+  const result = new Map(
     changes.map((c) => {
       const b = ctx.baselineTrade!.get(c.rosterId)!;
       const a = after.get(c.rosterId)!;
       return [c.rosterId, { playoffBefore: b.playoffPct, playoffAfter: a.playoffPct, titleBefore: b.titlePct, titleAfter: a.titlePct }];
     }),
   );
+  ctx.deltas.set(key, result);
+  return result;
 }

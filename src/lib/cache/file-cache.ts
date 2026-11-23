@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { getConfig } from "@/lib/config";
 import { logger } from "@/lib/log";
 import type { KvStore, StoredEntry } from "@/lib/store";
@@ -21,6 +22,12 @@ export type GetOrFetchOptions = {
   ttlMs: number;
   /** Bypass the TTL and fetch from the origin (falls back to cache on failure). */
   force?: boolean;
+  /**
+   * Stale-while-revalidate window: within `ttlMs + staleWhileRevalidateMs`, an expired copy is
+   * served immediately and refreshed in the background. Use for large, slow-changing sources so a
+   * visitor never waits on them; leave unset for data that must be current (rosters, matchups).
+   */
+  staleWhileRevalidateMs?: number;
 };
 
 const age = (e: { fetchedAt: string }) => Date.now() - new Date(e.fetchedAt).getTime();
@@ -72,9 +79,31 @@ export class DataCache {
     return p;
   }
 
+  private revalidating = new Set<string>();
+
+  /** Refresh a key in the background; the response is not held up (Next's `after` keeps serverless functions alive). */
+  private revalidate<T>(key: string, fetcher: () => Promise<T>) {
+    if (this.revalidating.has(key) || this.inflight.has(key)) return;
+    this.revalidating.add(key);
+    const p = fetcher()
+      .then((data) => this.write(key, data))
+      .then(() => log.info("revalidated", { key }))
+      .catch((err) => log.warn("background refresh failed; keeping cached copy", { key, error: String(err) }))
+      .finally(() => this.revalidating.delete(key));
+    try {
+      after(p);
+    } catch {
+      // Outside a request (scripts, tests): the promise simply runs to completion.
+    }
+  }
+
   private async resolve<T>(key: string, fetcher: () => Promise<T>, opts: GetOrFetchOptions): Promise<Cached<T>> {
     const existing = await this.read<T>(key, opts.force ? 0 : opts.ttlMs);
     if (existing && !opts.force && age(existing) < opts.ttlMs) {
+      return { data: existing.data, fetchedAt: existing.fetchedAt, source: "cache", stale: false };
+    }
+    if (existing && !opts.force && opts.staleWhileRevalidateMs && age(existing) < opts.ttlMs + opts.staleWhileRevalidateMs) {
+      this.revalidate(key, fetcher);
       return { data: existing.data, fetchedAt: existing.fetchedAt, source: "cache", stale: false };
     }
     try {

@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { LeagueModel } from "@/lib/analysis/types";
 import { strategySchema } from "@/lib/prefs/store";
 import { packageValue, teamAssets, type TradeAsset } from "./assets";
-import { evaluateTrade, type TradeEvaluation } from "./evaluate";
+import { evaluateTrade, overallScore, scoreSide, type TradeEvaluation } from "./evaluate";
 
 export const generateOptionsSchema = z.object({
   objective: strategySchema,
@@ -49,7 +49,7 @@ function pool(assets: TradeAsset[], flagged: Set<string>): TradeAsset[] {
 
 /**
  * Generate two-team trade candidates for my team across the league (or selected partners),
- * evaluate each with `evaluateTrade`, and return the best-ranked, de-duplicated proposals.
+ * score each pair, and return the best-ranked, de-duplicated proposals.
  *
  * Packages are only considered when their adjusted values are within ±25% of each other, so
  * the engine searches for plausible deals rather than lopsided ones.
@@ -66,7 +66,12 @@ export function generateTrades(model: LeagueModel, myRosterId: number, input: Ge
     teamAssets(me).filter((a) => !untouchable.has(a.assetId) && (o.offerPicks || a.kind !== "pick")),
     block,
   );
-  const myCombos = combos(myPool, o.maxAssetsPerSide).map((c) => ({ assets: c, value: packageValue(c.map((a) => a.value)) }));
+  // Skip packages where a throw-in is under 15% of the headline asset (filler noise).
+  const myCombos = combos(myPool, o.maxAssetsPerSide)
+    .filter((c) => !hasFiller(c))
+    .map((c, idx) => ({ assets: c, value: packageValue(c.map((a) => a.value)), idx }));
+  // Sorted by value so each partner package only visits my packages within ±25% of its value.
+  const myByValue = [...myCombos].sort((a, b) => a.value - b.value);
 
   const wantsAsset = (a: TradeAsset) => {
     if (a.kind === "pick") return o.receivePicks && (o.positions.length === 0 || o.positions.includes("PICK"));
@@ -85,38 +90,39 @@ export function generateTrades(model: LeagueModel, myRosterId: number, input: Ge
     const theirAll = teamAssets(partner);
     const theirPool = pool(theirAll.filter(wantsAsset), targets);
     // Their combos must contain at least one asset I want; extra pieces may be any of their assets in the pool.
-    const theirCombos = combos(theirPool, o.maxAssetsPerSide).map((c) => ({ assets: c, value: packageValue(c.map((a) => a.value)) }));
-    const candidates: TradeEvaluation[] = [];
+    const theirCombos = combos(theirPool, o.maxAssetsPerSide)
+      .filter((c) => !hasFiller(c))
+      .map((c) => ({ assets: c, value: packageValue(c.map((a) => a.value)) }));
+    const activity = model.history?.activityByRoster[partner.team.rosterId];
+    // Pass 1: score every plausible pair numerically (cheap, memoized lineups).
+    const candidates: { mine: TradeAsset[]; theirs: TradeAsset[]; overall: number; pref: number }[] = [];
     for (const theirs of theirCombos) {
-      for (const mine of myCombos) {
+      // |a − b| ≤ 25% of the larger ⇔ 0.75·theirs ≤ mine ≤ theirs / 0.75.
+      const window = valueWindow(myByValue, theirs.value * 0.75, theirs.value / 0.75).sort((a, b) => a.idx - b.idx);
+      for (const mine of window) {
         const hi = Math.max(theirs.value, mine.value);
         if (Math.abs(theirs.value - mine.value) > 0.25 * hi) continue;
-        // Skip packages where a throw-in is under 15% of the headline asset (filler noise).
-        if (hasFiller(theirs.assets) || hasFiller(mine.assets)) continue;
-        const ev = evaluateTrade(model, {
-          myRosterId,
-          partnerRosterId: partner.team.rosterId,
-          myGives: mine.assets,
-          theirGives: theirs.assets,
-          objective: o.objective,
-        });
-        if (ev.partner.score < -1) continue;
+        const partnerScore = scoreSide(model, partner, theirs.assets, mine.assets, partner.strategy.effective).score;
+        if (partnerScore < -1) continue;
+        const myScore = scoreSide(model, me, mine.assets, theirs.assets, o.objective).score;
         // Bonuses for user preferences (trade block out, targets in).
         const pref = mine.assets.filter((a) => block.has(a.assetId)).length * 0.75 + theirs.assets.filter((a) => targets.has(a.assetId)).length * 1;
-        ev.overall = Math.round((ev.overall + pref) * 100) / 100;
-        if (ev.mine.score <= 0 && pref === 0) continue;
-        candidates.push(ev);
+        if (myScore <= 0 && pref === 0) continue;
+        candidates.push({ mine: mine.assets, theirs: theirs.assets, overall: Math.round((overallScore(myScore, partnerScore, activity) + pref) * 100) / 100, pref });
       }
     }
     candidates.sort((a, b) => b.overall - a.overall);
+    // Pass 2: full, explained evaluation only for the proposals kept.
     // Diversity: don't repeat the same headline incoming asset within a partner.
     const seenHeadline = new Set<string>();
     let kept = 0;
     for (const c of candidates) {
-      const headline = [...c.mine.gets].sort((a, b) => b.value - a.value)[0]?.assetId;
+      const headline = [...c.theirs].sort((a, b) => b.value - a.value)[0]?.assetId;
       if (headline && seenHeadline.has(headline)) continue;
       if (headline) seenHeadline.add(headline);
-      results.push(c);
+      const ev = evaluateTrade(model, { myRosterId, partnerRosterId: partner.team.rosterId, myGives: c.mine, theirGives: c.theirs, objective: o.objective });
+      ev.overall = Math.round((ev.overall + c.pref) * 100) / 100;
+      results.push(ev);
       if (++kept >= o.perPartner) break;
     }
   }
@@ -131,6 +137,20 @@ export function generateTrades(model: LeagueModel, myRosterId: number, input: Ge
       return n < 3;
     })
     .slice(0, o.limit);
+}
+
+/** Entries of a value-sorted list with lo ≤ value ≤ hi (binary search for the start). */
+function valueWindow<T extends { value: number }>(sorted: T[], lo: number, hi: number): T[] {
+  let a = 0;
+  let b = sorted.length;
+  while (a < b) {
+    const m = (a + b) >> 1;
+    if (sorted[m].value < lo) a = m + 1;
+    else b = m;
+  }
+  const out: T[] = [];
+  for (let i = Math.max(0, a - 1); i < sorted.length && sorted[i].value <= hi + 1; i++) out.push(sorted[i]);
+  return out;
 }
 
 function hasFiller(assets: TradeAsset[]) {

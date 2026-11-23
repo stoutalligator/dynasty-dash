@@ -14,6 +14,8 @@ type SortKey = "slot" | "name" | "pos" | "age" | "ppg" | "total" | "snap" | "pro
 const SLOT_ORDER: Record<RosterSlot, number> = { starter: 0, bench: 1, taxi: 2, reserve: 3 };
 const SLOT_LABEL: Record<RosterSlot, string> = { starter: "Starters", bench: "Bench", taxi: "Taxi squad", reserve: "Reserve / IR" };
 const POS_ORDER: Record<string, number> = { QB: 0, RB: 1, WR: 2, TE: 3 };
+/** Long lists (the league-wide player pool) render in pages so the page stays light. */
+const PAGE = 100;
 
 const TAG_CLASS: Record<string, string> = {
   Core: "text-accent ring-accent/30",
@@ -107,6 +109,16 @@ export function RosterTable({
   );
 
   const grouped = sort.key === "slot" && slot === "ALL";
+  const slotCounts = useMemo(() => {
+    const m = new Map<string | null, number>();
+    for (const p of rows) m.set(p.slot, (m.get(p.slot) ?? 0) + 1);
+    return m;
+  }, [rows]);
+  // Reset paging whenever the filters or sort change (no effect needed: derived from a key).
+  const pageKey = `${pos}|${slot}|${sort.key}|${sort.dir}|${players.length}`;
+  const [paging, setPaging] = useState({ key: pageKey, n: PAGE });
+  const shownCount = paging.key === pageKey ? paging.n : PAGE;
+  const visible = rows.length > shownCount ? rows.slice(0, shownCount) : rows;
 
   return (
     <div>
@@ -137,11 +149,11 @@ export function RosterTable({
 
       {/* Phones: compact player rows instead of a wide table. */}
       <ul className="border-t border-line md:hidden">
-        {rows.map((p, i) => (
+        {visible.map((p, i) => (
           <li key={p.id}>
-            {grouped && (i === 0 || rows[i - 1].slot !== p.slot) && (
+            {grouped && (i === 0 || visible[i - 1].slot !== p.slot) && (
               <div className="bg-surface-2/50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-3">
-                {SLOT_LABEL[p.slot ?? "bench"]} ({players.filter((x) => x.slot === p.slot).length})
+                {SLOT_LABEL[p.slot ?? "bench"]} ({slotCounts.get(p.slot) ?? 0})
               </div>
             )}
             <div className="flex items-center gap-3 border-b border-line/60 px-4 py-2.5">
@@ -193,11 +205,11 @@ export function RosterTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((p, i) => {
-              const groupRow = grouped && (i === 0 || rows[i - 1].slot !== p.slot) ? (
+            {visible.map((p, i) => {
+              const groupRow = grouped && (i === 0 || visible[i - 1].slot !== p.slot) ? (
                 <tr key={`g-${p.slot}`} className="bg-surface-2/50">
                   <td colSpan={12} className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-3">
-                    {SLOT_LABEL[p.slot ?? "bench"]} ({players.filter((x) => x.slot === p.slot).length})
+                    {SLOT_LABEL[p.slot ?? "bench"]} ({slotCounts.get(p.slot) ?? 0})
                   </td>
                 </tr>
               ) : null;
@@ -243,6 +255,20 @@ export function RosterTable({
           </tbody>
         </table>
       </div>
+      {rows.length > visible.length && (
+        <div className="flex items-center justify-center gap-3 border-t border-line px-4 py-3 text-xs text-ink-3">
+          <span className="tnum">
+            Showing {visible.length} of {rows.length}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPaging({ key: pageKey, n: shownCount + PAGE })}
+            className="rounded-lg border border-line-strong bg-surface-2 px-3 py-1.5 font-medium text-ink-2 transition hover:border-accent/40 hover:text-ink"
+          >
+            Show {Math.min(PAGE, rows.length - visible.length)} more
+          </button>
+        </div>
+      )}
       <PlayerDrawer player={selected} teamName={selected?.rosterId != null ? teamNames?.[selected.rosterId] : null} onClose={() => setSelected(null)} />
     </div>
   );

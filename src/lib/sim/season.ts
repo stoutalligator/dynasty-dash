@@ -91,10 +91,24 @@ export function simulateSeason(input: SimInput, runs: number, seed = 20_261_018)
     const m = input.teams[i].weekMeans;
     return m.get(week) ?? m.get([...m.keys()].sort((a, b) => b - a)[0]) ?? 0;
   };
+  // Precomputed per-week means and pair indices: the loop below runs runs × weeks × teams times.
+  const regMeans = input.schedule.map((wk) => Float64Array.from({ length: n }, (_, i) => meanFor(i, wk.week)));
+  const regPairs = input.schedule.map((wk) =>
+    wk.pairs.flatMap(([a, b]) => {
+      const ia = idxByRoster.get(a);
+      const ib = idxByRoster.get(b);
+      return ia == null || ib == null ? [] : [[ia, ib] as const];
+    }),
+  );
+  const playoffMeans = new Map<number, Float64Array>();
+  for (const w of [...input.playoffWeeks, 17]) playoffMeans.set(w, Float64Array.from({ length: n }, (_, i) => meanFor(i, w)));
+  const drawOrder = order.map((o) => o.i);
+  const medianRank = n - Math.floor(n / 2); // ascending index of the (n/2)-th highest score
 
   const wins = new Float64Array(n);
   const pf = new Float64Array(n);
   const scores = new Float64Array(n);
+  const sorted = new Float64Array(n);
 
   for (let r = 0; r < runs; r++) {
     const next = rng(seed + r * 7919);
@@ -102,19 +116,18 @@ export function simulateSeason(input: SimInput, runs: number, seed = 20_261_018)
       wins[i] = input.teams[i].wins + input.teams[i].ties / 2;
       pf[i] = input.teams[i].pointsFor;
     }
-    for (const wk of input.schedule) {
+    for (let w = 0; w < regMeans.length; w++) {
+      const means = regMeans[w];
       // Draw in roster-id order so the same team gets the same random draw across scenarios.
-      for (const { i } of order) scores[i] = meanFor(i, wk.week) + input.sd * normal(next);
-      for (const [a, b] of wk.pairs) {
-        const ia = idxByRoster.get(a);
-        const ib = idxByRoster.get(b);
-        if (ia == null || ib == null) continue;
+      for (const i of drawOrder) scores[i] = means[i] + input.sd * normal(next);
+      for (const [ia, ib] of regPairs[w]) {
         if (scores[ia] > scores[ib]) wins[ia]++;
         else wins[ib]++;
       }
       if (input.medianGame) {
-        const sorted = Array.from(scores).sort((x, y) => y - x);
-        const cut = sorted[Math.floor(n / 2) - 1];
+        sorted.set(scores);
+        sorted.sort();
+        const cut = sorted[medianRank];
         for (let i = 0; i < n; i++) if (scores[i] >= cut) wins[i]++;
       }
       for (let i = 0; i < n; i++) pf[i] += scores[i];
@@ -140,7 +153,7 @@ export function simulateSeason(input: SimInput, runs: number, seed = 20_261_018)
       const weeks = input.playoffWeeks.slice(round * input.weeksPerRound, round * input.weeksPerRound + input.weeksPerRound);
       const draw = (i: number) => {
         let sc = 0;
-        for (const w of weeks.length ? weeks : [input.playoffWeeks.at(-1) ?? 17]) sc += meanFor(i, w) + input.sd * normal(next);
+        for (const w of weeks.length ? weeks : [input.playoffWeeks.at(-1) ?? 17]) sc += playoffMeans.get(w)![i] + input.sd * normal(next);
         return sc;
       };
       const resting = round === 0 ? alive.slice(0, byes) : [];

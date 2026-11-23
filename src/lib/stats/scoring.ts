@@ -4,13 +4,28 @@
  * Verified to reproduce Sleeper's own matchup points exactly for this league.
  */
 export function scoreStatLine(stats: Record<string, unknown>, scoring: Record<string, number>): number {
+  const weights = compiled(scoring);
   let pts = 0;
-  for (const [key, weight] of Object.entries(scoring)) {
-    if (!weight) continue;
-    const v = stats[key];
-    if (typeof v === "number" && Number.isFinite(v)) pts += v * weight;
+  for (let i = 0; i < weights.length; i++) {
+    const v = stats[weights[i][0]];
+    if (typeof v === "number" && Number.isFinite(v)) pts += v * weights[i][1];
   }
   return Math.round(pts * 100) / 100;
+}
+
+/**
+ * Non-zero scoring weights, computed once per settings object. Scoring runs for every player in
+ * every week of stats and projections (~150k lines), so re-walking ~100 settings each time dominated
+ * cold model builds.
+ */
+const compiledCache = new WeakMap<Record<string, number>, [string, number][]>();
+function compiled(scoring: Record<string, number>): [string, number][] {
+  let w = compiledCache.get(scoring);
+  if (!w) {
+    w = Object.entries(scoring).filter(([, v]) => typeof v === "number" && v !== 0);
+    compiledCache.set(scoring, w);
+  }
+  return w;
 }
 
 export type StatLine = {

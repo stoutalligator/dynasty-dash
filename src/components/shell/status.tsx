@@ -59,7 +59,12 @@ export async function SyncStatus() {
             <CircleCheck className="size-3.5 text-good" aria-hidden /> Live Sleeper data
           </span>
         )}
-        {oldest && <span title={new Date(oldest).toLocaleString()}>Synced {fmtRelative(oldest)}</span>}
+        {oldest && <span title={`League data fetched ${new Date(oldest).toLocaleString()}`}>Synced {fmtRelative(oldest)}</span>}
+        {model.freshness.valuations && (
+          <span className="hidden sm:inline" title={`${model.valuation.label} values fetched ${new Date(model.freshness.valuations.fetchedAt).toLocaleString()}`}>
+            Values {fmtRelative(model.freshness.valuations.fetchedAt)}
+          </span>
+        )}
         <RefreshButton />
       </div>
     </div>

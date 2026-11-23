@@ -14,6 +14,8 @@ export async function GET(request: Request) {
   if (!(await resolveActiveLeague())) return Response.json({ ok: true, skipped: "No league selected yet (visit /setup)." });
   const t0 = Date.now();
   const { model, prefs } = await loadLeagueModel({ refresh: "all" });
+  // Pre-build the trade ideas the Dashboard, My Team and Trade Hub ask for (same keys as the pages).
+  if (model.myRosterId != null) for (const objective of ["contender", "retool", "rebuild"] as const) defaultTrades(model, prefs, objective);
   const me = model.teams.find((t) => t.team.rosterId === model.myRosterId);
   if (me) defaultTrades(model, prefs, me.strategy.effective, 30);
   return Response.json({

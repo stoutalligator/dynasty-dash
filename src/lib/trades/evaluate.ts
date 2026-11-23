@@ -73,17 +73,47 @@ export type TradeEvaluation = {
 
 const YOUNG = 25;
 
-function candidatesAfter(team: TeamAnalysis, gives: Set<string>, gets: TradeAsset[]): LineupCandidate[] {
-  const keep = team.players
-    .filter((p) => (p.slot === "starter" || p.slot === "bench") && !gives.has(p.assetId))
-    .map((p) => ({ id: p.id, positions: p.position ? [p.position] : [], score: p.prod?.adjPpg ?? 0 }));
-  const incoming = gets
-    .filter((a) => a.kind === "player")
-    .map((a) => ({ id: a.assetId.slice("player:".length), positions: a.position ? [a.position] : [], score: a.adjPpg ?? 0 }));
-  return [...keep, ...incoming];
+type Cand = LineupCandidate;
+const asCand = (p: { id: string; position: string | null; prod?: { adjPpg: number } | null }): Cand => ({
+  id: p.id,
+  positions: p.position ? [p.position] : [],
+  score: p.prod?.adjPpg ?? 0,
+});
+
+/** Per-team data that every candidate trade reuses (computed once per team per model). */
+type TeamCtx = {
+  active: TeamAnalysis["players"];
+  /** Active players sorted by value ascending: the first ones are cut when a roster overflows. */
+  cutOrder: TeamAnalysis["players"];
+  before: Cand[];
+  topBefore: Map<string, number>;
+  playersBefore: { age: number | null; value: number; assetId: string }[];
+  /** Lineup outcome per (players out, players in); picks never change a lineup, so many pairs share one. */
+  lineups: Map<string, { lineupAfter: number; positionDeltas: SideImpact["positionDeltas"]; needsAddressed: SkillPosition[]; needSeverity: number }>;
+};
+const teamCtxCache = new WeakMap<TeamAnalysis, TeamCtx>();
+
+function teamCtx(model: LeagueModel, team: TeamAnalysis): TeamCtx {
+  let c = teamCtxCache.get(team);
+  if (!c) {
+    const active = team.players.filter((p) => p.slot === "starter" || p.slot === "bench");
+    const before = active.map(asCand);
+    c = {
+      active,
+      cutOrder: [...active].sort((a, b) => (a.value ?? 0) - (b.value ?? 0)),
+      before,
+      topBefore: new Map(model.gradedPositions.map((pos) => [pos, round1(topK(before, pos, model.startersPerPosition[pos]))])),
+      playersBefore: team.players.map((p) => ({ age: p.age, value: p.value ?? 0, assetId: p.assetId })),
+      lineups: new Map(),
+    };
+    teamCtxCache.set(team, c);
+  }
+  return c;
 }
 
-function topK(cands: LineupCandidate[], pos: string, k: number) {
+const round1 = (x: number) => Math.round(x * 10) / 10;
+
+function topK(cands: Cand[], pos: string, k: number) {
   return cands.filter((c) => c.positions.includes(pos)).map((c) => c.score).sort((a, b) => b - a).slice(0, k).reduce((a, b) => a + b, 0);
 }
 
@@ -96,54 +126,81 @@ function weightedAge(items: { age: number | null; value: number }[]): number | n
 const futureValue = (assets: TradeAsset[]) =>
   assets.reduce((a, x) => a + (x.kind === "pick" || (x.age != null && x.age <= YOUNG) ? x.value : 0), 0);
 
-export function evaluateSide(model: LeagueModel, team: TeamAnalysis, gives: TradeAsset[], gets: TradeAsset[], strategy: Strategy): SideImpact {
+/**
+ * The numeric core of a side's evaluation: everything the score needs, without building reason
+ * strings. The trade generator scores thousands of candidate pairs with this and only builds the
+ * full explanation (`evaluateSide`) for the ones it keeps.
+ */
+export function scoreSide(model: LeagueModel, team: TeamAnalysis, gives: TradeAsset[], gets: TradeAsset[], strategy: Strategy) {
+  const ctx = teamCtx(model, team);
   const giveIds = new Set(gives.map((a) => a.assetId));
-  const before = team.players
-    .filter((p) => p.slot === "starter" || p.slot === "bench")
-    .map((p) => ({ id: p.id, positions: p.position ? [p.position] : [], score: p.prod?.adjPpg ?? 0 }));
-  const after = candidatesAfter(team, giveIds, gets);
-  const lineupAfter = optimalLineup(after, model.league.startingSlots).total;
+  const playersIn = gets.filter((a) => a.kind === "player");
+
+  const key = `${playerKey(gives)}|${playerKey(gets)}`;
+  let lu = ctx.lineups.get(key);
+  if (!lu) {
+    const after = [
+      ...ctx.before.filter((c) => !giveIds.has(`player:${c.id}`)),
+      ...playersIn.map((a) => ({ id: a.assetId.slice("player:".length), positions: a.position ? [a.position] : [], score: a.adjPpg ?? 0 })),
+    ];
+    const positionDeltas = model.gradedPositions
+      .map((pos) => ({ position: pos, before: ctx.topBefore.get(pos)!, after: round1(topK(after, pos, model.startersPerPosition[pos])) }))
+      .filter((d) => d.before !== d.after);
+    const needsAddressed = team.needs
+      .filter((nd) => positionDeltas.some((d) => d.position === nd.position && d.after > d.before + 0.5))
+      .map((nd) => nd.position);
+    const needSeverity = team.needs.filter((nd) => needsAddressed.includes(nd.position)).reduce((a, nd) => a + nd.severity, 0);
+    lu = { lineupAfter: optimalLineup(after, model.league.startingSlots).total, positionDeltas, needsAddressed, needSeverity };
+    if (ctx.lineups.size > 50_000) ctx.lineups.clear(); // bound memory on very wide searches
+    ctx.lineups.set(key, lu);
+  }
+  const { lineupAfter, positionDeltas, needsAddressed, needSeverity } = lu;
   const lineupDelta = Math.round((lineupAfter - team.lineup.total) * 100) / 100;
 
-  const positionDeltas = model.gradedPositions.map((pos) => ({
-    position: pos,
-    before: Math.round(topK(before, pos, model.startersPerPosition[pos]) * 10) / 10,
-    after: Math.round(topK(after, pos, model.startersPerPosition[pos]) * 10) / 10,
-  })).filter((d) => d.before !== d.after);
+  const activeLimit = model.league.startingSlots.length + model.league.benchSlots;
+  const activeOut = gives.filter((a) => a.kind === "player" && (a.slot === "starter" || a.slot === "bench")).length;
+  const rosterOverflow = Math.max(0, ctx.active.length - activeOut + playersIn.length - activeLimit);
+  // Roster-spot cost: the value of the players who would have to be released (lowest value first).
+  const cuts = rosterOverflow
+    ? ctx.cutOrder.filter((p) => !giveIds.has(p.assetId)).slice(0, rosterOverflow).map((p) => ({ name: p.name, value: p.value ?? 0 }))
+    : [];
+  const cutCost = cuts.reduce((a, c) => a + c.value, 0);
 
+  const w = OBJECTIVE_WEIGHTS[strategy];
+  const effectiveNet = effectiveValue(gets, strategy) - effectiveValue(gives, strategy);
+  const score = (effectiveNet - cutCost) / 1000 + w.lineup * lineupDelta + w.need * needSeverity - 0.1 * rosterOverflow;
+  return { ctx, giveIds, lineupAfter, lineupDelta, positionDeltas, needsAddressed, activeLimit, rosterOverflow, cuts, score: Math.round(score * 100) / 100 };
+}
+
+// The generator passes the same package arrays to thousands of pairs, so per-package work is cached on the array.
+const playerKeyCache = new WeakMap<TradeAsset[], string>();
+function playerKey(assets: TradeAsset[]): string {
+  let k = playerKeyCache.get(assets);
+  if (k == null) {
+    k = assets.filter((a) => a.kind === "player").map((a) => a.assetId).sort().join(",");
+    playerKeyCache.set(assets, k);
+  }
+  return k;
+}
+const effCache = new WeakMap<TradeAsset[], Partial<Record<Strategy, number>>>();
+/** Package value as a team with this strategy sees it. */
+function effectiveValue(assets: TradeAsset[], strategy: Strategy): number {
+  let byStrategy = effCache.get(assets);
+  if (!byStrategy) effCache.set(assets, (byStrategy = {}));
+  return (byStrategy[strategy] ??= packageValue(assets.map((a) => a.value * strategyMultiplier(strategy, a))));
+}
+
+export function evaluateSide(model: LeagueModel, team: TeamAnalysis, gives: TradeAsset[], gets: TradeAsset[], strategy: Strategy): SideImpact {
+  const { ctx, giveIds, lineupAfter, lineupDelta, positionDeltas, needsAddressed, activeLimit, rosterOverflow, cuts, score } = scoreSide(model, team, gives, gets, strategy);
   const valueOut = packageValue(gives.map((a) => a.value));
   const valueIn = packageValue(gets.map((a) => a.value));
   const netValue = valueIn - valueOut;
   const futureDelta = futureValue(gets) - futureValue(gives);
   const pickValueDelta = gets.filter((a) => a.kind === "pick").reduce((a, x) => a + x.value, 0) - gives.filter((a) => a.kind === "pick").reduce((a, x) => a + x.value, 0);
-
-  const playersBefore = team.players.map((p) => ({ age: p.age, value: p.value ?? 0, assetId: p.assetId }));
-  const playersAfter = [...playersBefore.filter((p) => !giveIds.has(p.assetId)), ...gets.filter((a) => a.kind === "player").map((a) => ({ age: a.age, value: a.value, assetId: a.assetId }))];
-
-  const needsAddressed = team.needs
-    .filter((nd) => positionDeltas.some((d) => d.position === nd.position && d.after > d.before + 0.5))
-    .map((nd) => nd.position);
-  const needSeverity = team.needs.filter((nd) => needsAddressed.includes(nd.position)).reduce((a, nd) => a + nd.severity, 0);
-
-  const activeLimit = model.league.startingSlots.length + model.league.benchSlots;
-  const activeNow = team.players.filter((p) => p.slot === "starter" || p.slot === "bench").length;
-  const playersIn = gets.filter((a) => a.kind === "player").length;
-  const activeOut = gives.filter((a) => a.kind === "player" && (a.slot === "starter" || a.slot === "bench")).length;
-  const rosterOverflow = Math.max(0, activeNow - activeOut + playersIn - activeLimit);
-  // Roster-spot cost: the value of the players who would have to be released (lowest value first).
-  const cuts = rosterOverflow
-    ? team.players
-        .filter((p) => (p.slot === "starter" || p.slot === "bench") && !giveIds.has(p.assetId))
-        .sort((a, b) => (a.value ?? 0) - (b.value ?? 0))
-        .slice(0, rosterOverflow)
-        .map((p) => ({ name: p.name, value: p.value ?? 0 }))
-    : [];
-  const cutCost = cuts.reduce((a, c) => a + c.value, 0);
-
-  const w = OBJECTIVE_WEIGHTS[strategy];
-  const eff = (assets: TradeAsset[]) => packageValue(assets.map((a) => a.value * strategyMultiplier(strategy, a)));
-  const effectiveNet = eff(gets) - eff(gives);
-  const score = (effectiveNet - cutCost) / 1000 + w.lineup * lineupDelta + w.need * needSeverity - 0.1 * rosterOverflow;
+  const playersAfter = [
+    ...ctx.playersBefore.filter((p) => !giveIds.has(p.assetId)),
+    ...gets.filter((a) => a.kind === "player").map((a) => ({ age: a.age, value: a.value, assetId: a.assetId })),
+  ];
 
   const reasonsFor: string[] = [];
   const reasonsAgainst: string[] = [];
@@ -171,17 +228,26 @@ export function evaluateSide(model: LeagueModel, team: TeamAnalysis, gives: Trad
     lineupAfter,
     lineupDelta,
     positionDeltas,
-    ageBefore: weightedAge(playersBefore),
+    ageBefore: weightedAge(ctx.playersBefore),
     ageAfter: weightedAge(playersAfter),
     futureDelta,
     pickValueDelta,
     needsAddressed,
     rosterOverflow,
     cuts,
-    score: Math.round(score * 100) / 100,
+    score,
     reasonsFor,
     reasonsAgainst,
   };
+}
+
+/** Ranking score for a trade: rewards mutual benefit and penalizes deals the partner has little reason to consider. */
+export function overallScore(mineScore: number, partnerScore: number, partnerActivity: number | null | undefined): number {
+  return (
+    Math.round(
+      (mineScore + 0.5 * Math.min(partnerScore, 1.5) + (partnerScore < 0 ? 0.8 * partnerScore : 0) + (partnerActivity != null ? 0.4 * (partnerActivity - 0.5) : 0)) * 100,
+    ) / 100
+  );
 }
 
 /** Evaluate a two-team trade from my perspective. Does not predict acceptance; it explains incentives. */
@@ -206,8 +272,7 @@ export function evaluateTrade(
 
   // Realism: reward mutual benefit, and penalize deals the partner has little reason to consider.
   const partnerOutlook = partner.score >= 0.3 ? "Likely interested" : partner.score >= -0.5 ? "Possible" : "Unlikely";
-  const overall =
-    Math.round((mine.score + 0.5 * Math.min(partner.score, 1.5) + (partner.score < 0 ? 0.8 * partner.score : 0) + (activity != null ? 0.4 * (activity - 0.5) : 0)) * 100) / 100;
+  const overall = overallScore(mine.score, partner.score, activity);
   const fit = mine.score >= 1 && partner.score >= 0 ? "High" : mine.score >= 0.3 && partner.score >= -0.5 ? "Medium" : "Low";
 
   const risks: string[] = [];
