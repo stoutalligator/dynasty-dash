@@ -19,6 +19,11 @@ export const generateOptionsSchema = z.object({
   untouchables: z.array(z.string()).default([]),
   tradeBlock: z.array(z.string()).default([]),
   targets: z.array(z.string()).default([]),
+  /**
+   * Build every proposal around one asset ("player:<id>" or "pick:..."). Mine: shop it to the league.
+   * Theirs: find packages that would get it from its owner (the partner is then that team).
+   */
+  anchorAssetId: z.string().regex(/^(player|pick):/).optional(),
   limit: z.number().int().min(1).max(100).default(30),
   perPartner: z.number().int().min(1).max(20).default(4),
 });
@@ -39,12 +44,22 @@ function combos<T>(items: T[], max: number): T[][] {
   return out;
 }
 
-/** Top assets by value, always keeping explicitly flagged ones. */
-function pool(assets: TradeAsset[], flagged: Set<string>): TradeAsset[] {
+/** Top assets by value, always keeping explicitly flagged ones (and the anchor, whatever its value). */
+function pool(assets: TradeAsset[], flagged: Set<string>, anchor: string | null = null): TradeAsset[] {
   const sorted = assets.filter((a) => a.value >= MIN_ASSET_VALUE).sort((a, b) => b.value - a.value);
   const top = sorted.slice(0, POOL_SIZE);
   for (const a of sorted) if (flagged.has(a.assetId) && !top.includes(a)) top.push(a);
+  const anchored = anchor ? assets.find((a) => a.assetId === anchor) : undefined;
+  if (anchored && !top.includes(anchored)) top.push(anchored);
   return top;
+}
+
+/** Where an anchor asset lives: on my roster, on a partner's, or nowhere (then it's an error). */
+export function locateAnchor(model: LeagueModel, myRosterId: number, assetId: string): { side: "mine" | "theirs"; rosterId: number } | null {
+  for (const t of model.teams) {
+    if (teamAssets(t).some((a) => a.assetId === assetId)) return { side: t.team.rosterId === myRosterId ? "mine" : "theirs", rosterId: t.team.rosterId };
+  }
+  return null;
 }
 
 /**
@@ -62,13 +77,27 @@ export function generateTrades(model: LeagueModel, myRosterId: number, input: Ge
   const block = new Set(o.tradeBlock);
   const targets = new Set(o.targets);
 
+  // Anchor: my asset is being shopped (treated like the trade block); theirs is a target.
+  const anchor = o.anchorAssetId ?? null;
+  const where = anchor ? locateAnchor(model, myRosterId, anchor) : null;
+  if (anchor && !where) throw new Error("That player or pick isn't on a roster in this league.");
+  const anchorMine = where?.side === "mine";
+  const anchorTheirs = where?.side === "theirs";
+  if (anchorMine) {
+    untouchable.delete(anchor!);
+    block.add(anchor!);
+  }
+  if (anchorTheirs) targets.add(anchor!);
+  const hasAnchor = (c: TradeAsset[]) => c.some((a) => a.assetId === anchor);
+
   const myPool = pool(
-    teamAssets(me).filter((a) => !untouchable.has(a.assetId) && (o.offerPicks || a.kind !== "pick")),
+    teamAssets(me).filter((a) => (anchorMine && a.assetId === anchor) || (!untouchable.has(a.assetId) && (o.offerPicks || a.kind !== "pick"))),
     block,
+    anchorMine ? anchor : null,
   );
   // Skip packages where a throw-in is under 15% of the headline asset (filler noise).
   const myCombos = combos(myPool, o.maxAssetsPerSide)
-    .filter((c) => !hasFiller(c))
+    .filter((c) => !hasFiller(c) && (!anchorMine || hasAnchor(c)))
     .map((c, idx) => ({ assets: c, value: packageValue(c.map((a) => a.value)), idx }));
   // Sorted by value so each partner package only visits my packages within ±25% of its value.
   const myByValue = [...myCombos].sort((a, b) => a.value - b.value);
@@ -81,17 +110,18 @@ export function generateTrades(model: LeagueModel, myRosterId: number, input: Ge
     return true;
   };
 
-  const partners = model.teams.filter(
-    (t) => t.team.rosterId !== myRosterId && (!o.partnerRosterIds?.length || o.partnerRosterIds.includes(t.team.rosterId)),
-  );
+  const partners = anchorTheirs
+    ? model.teams.filter((t) => t.team.rosterId === where!.rosterId)
+    : model.teams.filter((t) => t.team.rosterId !== myRosterId && (!o.partnerRosterIds?.length || o.partnerRosterIds.includes(t.team.rosterId)));
 
   const results: TradeEvaluation[] = [];
   for (const partner of partners) {
     const theirAll = teamAssets(partner);
-    const theirPool = pool(theirAll.filter(wantsAsset), targets);
+    // Their anchor is kept even if it falls outside the position/age filters.
+    const theirPool = pool(theirAll.filter((a) => (anchorTheirs && a.assetId === anchor) || wantsAsset(a)), targets, anchorTheirs ? anchor : null);
     // Their combos must contain at least one asset I want; extra pieces may be any of their assets in the pool.
     const theirCombos = combos(theirPool, o.maxAssetsPerSide)
-      .filter((c) => !hasFiller(c))
+      .filter((c) => !hasFiller(c) && (!anchorTheirs || hasAnchor(c)))
       .map((c) => ({ assets: c, value: packageValue(c.map((a) => a.value)) }));
     const activity = model.history?.activityByRoster[partner.team.rosterId];
     // Pass 1: score every plausible pair numerically (cheap, memoized lineups).
@@ -113,13 +143,18 @@ export function generateTrades(model: LeagueModel, myRosterId: number, input: Ge
     }
     candidates.sort((a, b) => b.overall - a.overall);
     // Pass 2: full, explained evaluation only for the proposals kept.
-    // Diversity: don't repeat the same headline incoming asset within a partner.
-    const seenHeadline = new Set<string>();
+    // Diversity: don't repeat the same headline incoming asset within a partner. When their asset is
+    // the anchor it is in every package, so vary what I send instead.
+    const headlineUses = new Map<string, number>();
+    const maxPerHeadline = anchorTheirs ? 2 : 1;
     let kept = 0;
     for (const c of candidates) {
-      const headline = [...c.theirs].sort((a, b) => b.value - a.value)[0]?.assetId;
-      if (headline && seenHeadline.has(headline)) continue;
-      if (headline) seenHeadline.add(headline);
+      const headline = [...(anchorTheirs ? c.mine : c.theirs)].sort((a, b) => b.value - a.value)[0]?.assetId;
+      if (headline) {
+        const used = headlineUses.get(headline) ?? 0;
+        if (used >= maxPerHeadline) continue;
+        headlineUses.set(headline, used + 1);
+      }
       const ev = evaluateTrade(model, { myRosterId, partnerRosterId: partner.team.rosterId, myGives: c.mine, theirGives: c.theirs, objective: o.objective });
       ev.overall = Math.round((ev.overall + c.pref) * 100) / 100;
       results.push(ev);
@@ -131,6 +166,7 @@ export function generateTrades(model: LeagueModel, myRosterId: number, input: Ge
   return results
     .sort((a, b) => b.overall - a.overall)
     .filter((e) => {
+      if (anchorMine) return true; // the anchor leads every proposal by design
       const head = [...e.mine.gives].sort((a, b) => b.value - a.value)[0]?.assetId ?? "";
       const n = outgoingUses.get(head) ?? 0;
       outgoingUses.set(head, n + 1);

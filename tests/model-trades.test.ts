@@ -90,4 +90,23 @@ describe("trade evaluation", () => {
       expect(e.mine.score).toBeGreaterThan(0);
     }
   });
+
+  it("builds every proposal around my anchor asset, even an untouchable", () => {
+    const out = generateTrades(model, 1, { objective: "retool", anchorAssetId: "player:a-wr1", untouchables: ["player:a-wr1"], limit: 20, maxAssetsPerSide: 2 });
+    expect(out.length).toBeGreaterThan(0);
+    for (const e of out) expect(e.mine.gives.map((a) => a.assetId)).toContain("player:a-wr1");
+  });
+
+  it("targets another team's anchor only through its owner", () => {
+    const out = generateTrades(model, 1, { objective: "retool", anchorAssetId: "player:b-te1", partnerRosterIds: [3], limit: 20, perPartner: 15 });
+    expect(out.length).toBeGreaterThan(0);
+    for (const e of out) {
+      expect(e.partner.rosterId).toBe(2);
+      expect(e.mine.gets.map((a) => a.assetId)).toContain("player:b-te1");
+    }
+  });
+
+  it("rejects an anchor that is not on a roster", () => {
+    expect(() => generateTrades(model, 1, { objective: "retool", anchorAssetId: "player:nobody" })).toThrow(/isn't on a roster/);
+  });
 });

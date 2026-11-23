@@ -1,7 +1,8 @@
 "use client";
 
 import clsx from "clsx";
-import { X } from "lucide-react";
+import { ArrowLeftRight, X } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { PlayerAvatar } from "@/components/avatar";
 import { InjuryBadge, PosBadge } from "@/components/ui";
@@ -40,6 +41,15 @@ export function PlayerDrawer({ player: p, teamName, onClose }: { player: PlayerV
               {p.rosterId != null ? `Rostered${teamName ? ` by ${teamName}` : ""}${p.slot ? ` · ${p.slot}` : ""}` : "Available in your league"}
             </p>
             <div className="mt-1.5"><InjuryBadge injury={p.injury} /></div>
+            {p.rosterId != null && (
+              <Link
+                href={`/trades?asset=${encodeURIComponent(p.assetId)}`}
+                onClick={onClose}
+                className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-accent/12 px-2.5 py-1.5 text-xs font-semibold text-accent ring-1 ring-inset ring-accent/30 transition hover:bg-accent/20"
+              >
+                <ArrowLeftRight aria-hidden className="size-3.5" /> Find trades with {p.name.split(" ").slice(-1)[0]}
+              </Link>
+            )}
           </div>
           <button ref={closeRef} type="button" onClick={onClose} aria-label="Close player details" className="rounded-lg p-1.5 text-ink-2 hover:bg-surface-2">
             <X className="size-5" aria-hidden />

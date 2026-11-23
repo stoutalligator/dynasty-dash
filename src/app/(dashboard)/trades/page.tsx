@@ -7,7 +7,7 @@ import type { TeamAnalysis } from "@/lib/analysis/types";
 import { assetIndex, teamAssets } from "@/lib/trades/assets";
 import { evaluateTrade } from "@/lib/trades/evaluate";
 import { tradeWindow, tradeWindowNote } from "@/lib/league/trade-window";
-import { generateTrades } from "@/lib/trades/generate";
+import { generateTrades, locateAnchor } from "@/lib/trades/generate";
 import { getLeague, myTeam } from "@/lib/server/data";
 import { defaultTrades } from "@/lib/server/insights";
 import { annotateTradeOdds } from "@/lib/server/odds";
@@ -22,8 +22,8 @@ const hubTeam = (t: TeamAnalysis): HubTeam => ({
   assets: teamAssets(t),
 });
 
-async function Hub({ searchParams }: { searchParams: Promise<{ partner?: string }> }) {
-  const [{ partner }, { model, prefs }] = await Promise.all([searchParams, getLeague()]);
+async function Hub({ searchParams }: { searchParams: Promise<{ partner?: string; asset?: string }> }) {
+  const [{ partner, asset }, { model, prefs }] = await Promise.all([searchParams, getLeague()]);
   const me = myTeam(model);
   if (!me) return <Notice level="error">Your team could not be verified, so trades cannot be generated. Check Settings.</Notice>;
 
@@ -31,7 +31,16 @@ async function Hub({ searchParams }: { searchParams: Promise<{ partner?: string 
   const tw = tradeWindow(model.league);
   const windowNote = tradeWindowNote(tw);
   const partnerId = partner && model.teams.some((t) => t.team.rosterId === Number(partner) && !t.team.isMine) ? Number(partner) : null;
-  const proposals = partnerId
+  // ?asset=player:<id> builds every idea around one player (mine to shop, or theirs to acquire).
+  const where = asset && /^(player|pick):[\w:.-]+$/.test(asset) ? locateAnchor(model, me.team.rosterId, asset) : null;
+  const anchor = where ? asset! : null;
+  const proposals = anchor
+    ? annotateTradeOdds(
+        model,
+        generateTrades(model, me.team.rosterId, { objective, anchorAssetId: anchor, perPartner: where!.side === "theirs" ? 15 : 4, limit: 40, untouchables: prefs.untouchables, tradeBlock: prefs.tradeBlock, targets: prefs.targets }),
+        objective,
+      )
+    : partnerId
     ? annotateTradeOdds(model, generateTrades(model, me.team.rosterId, { objective, partnerRosterIds: [partnerId], perPartner: 15, limit: 40, untouchables: prefs.untouchables, tradeBlock: prefs.tradeBlock, targets: prefs.targets }), objective)
     : defaultTrades(model, prefs, objective, 30);
 
@@ -71,6 +80,7 @@ async function Hub({ searchParams }: { searchParams: Promise<{ partner?: string 
         initialProposals={proposals}
         initialObjective={objective}
         initialPartner={partnerId}
+        initialAnchor={anchor}
         flags={{ untouchables: prefs.untouchables, tradeBlock: prefs.tradeBlock, targets: prefs.targets }}
         saved={saved}
         valueLabel={`${model.valuation.label} (${model.valuation.kind === "third-party" ? "third-party market values" : "internal estimate"})`}
@@ -79,7 +89,7 @@ async function Hub({ searchParams }: { searchParams: Promise<{ partner?: string 
   );
 }
 
-export default function Page({ searchParams }: { searchParams: Promise<{ partner?: string }> }) {
+export default function Page({ searchParams }: { searchParams: Promise<{ partner?: string; asset?: string }> }) {
   return (
     <Suspense fallback={<PageSkeleton tiles={0} />}>
       <Hub searchParams={searchParams} />

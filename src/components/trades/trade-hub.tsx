@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Ban, Bookmark, ChevronDown, Columns3, Lock, Search, Star, Tag, Trash2, Wrench } from "lucide-react";
+import { Ban, Bookmark, ChevronDown, Columns3, Crosshair, Lock, Search, Star, Tag, Trash2, Wrench, X } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
 import { deleteProposal, evaluateCustomTrade, findTrades, saveProposal, toggleAssetFlag } from "@/app/actions";
 import { Segmented } from "@/components/team/roster-table";
@@ -26,6 +26,7 @@ export function TradeHub({
   initialProposals,
   initialObjective,
   initialPartner,
+  initialAnchor = null,
   flags: initialFlags,
   saved,
   valueLabel,
@@ -35,6 +36,8 @@ export function TradeHub({
   initialProposals: TradeEvaluation[];
   initialObjective: Strategy;
   initialPartner: number | null;
+  /** Asset every proposal is built around ("player:<id>"), from ?asset= or the picker. */
+  initialAnchor?: string | null;
   flags: Flags;
   saved: SavedView[];
   valueLabel: string;
@@ -52,6 +55,8 @@ export function TradeHub({
   const [compare, setCompare] = useState<TradeEvaluation[]>([]);
   const [pending, start] = useTransition();
   const [dirty, setDirty] = useState(false);
+  const [anchor, setAnchor] = useState<string | null>(initialAnchor);
+  const anchorInfo = findAnchor(anchor, me, partners);
 
   // Builder
   const [bPartner, setBPartner] = useState<number>(initialPartner ?? partners[0]?.rosterId);
@@ -63,24 +68,37 @@ export function TradeHub({
 
   const partnerTeam = partners.find((p) => p.rosterId === bPartner);
 
-  const run = (overrides: Partial<{ objective: Strategy }> = {}) =>
+  const run = (overrides: Partial<{ objective: Strategy; anchor: string | null }> = {}) =>
     start(async () => {
       setError(null);
+      const a = overrides.anchor !== undefined ? overrides.anchor : anchor;
+      const theirAnchor = !!a && !me.assets.some((x) => x.assetId === a);
       const r = await findTrades({
         objective: overrides.objective ?? objective,
-        partnerRosterIds: partner === "all" ? undefined : [Number(partner)],
+        partnerRosterIds: partner === "all" || theirAnchor ? undefined : [Number(partner)],
         positions,
         maxAge: maxAge ? Number(maxAge) : undefined,
         offerPicks,
         maxAssetsPerSide: Number(maxAssets),
         limit: 40,
-        perPartner: partner === "all" ? 4 : 15,
+        perPartner: theirAnchor || partner !== "all" ? 15 : 4,
+        anchorAssetId: a ?? undefined,
       });
       if (r.ok) {
         setProposals(r.data);
         setDirty(false);
       } else setError(r.error);
     });
+
+  /** Choose (or clear) the player every proposal is built around, and search right away. */
+  const chooseAnchor = (id: string | null) => {
+    setAnchor(id);
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set("asset", id);
+    else url.searchParams.delete("asset");
+    window.history.replaceState(null, "", url);
+    run({ anchor: id });
+  };
 
   const toggleFlag = (list: keyof Flags, assetId: string) =>
     start(async () => {
@@ -127,12 +145,19 @@ export function TradeHub({
     <div className="space-y-5">
       {/* Controls */}
       <Card>
+        <AnchorPicker me={me} partners={partners} value={anchor} info={anchorInfo} onChange={chooseAnchor} disabled={pending} />
         <div className="flex flex-wrap items-end gap-x-4 gap-y-3 p-4">
           <Field label="Objective" tip="Changes how your side is scored: contend weights lineup gains, rebuild favors picks and young players, retool balances both.">
             <Segmented value={objective} onChange={(v) => { setObjective(v as Strategy); setDirty(true); }} options={["contender", "retool", "rebuild"]} labels={{ contender: "Contend", retool: "Retool", rebuild: "Rebuild" }} label="Objective" />
           </Field>
           <Field label="Partner">
-            <select value={partner} onChange={(e) => { setPartner(e.target.value); setDirty(true); }} className="rounded-lg border border-line-strong bg-surface-2 px-2 py-1.5 text-sm text-ink">
+            <select
+              value={anchorInfo?.side === "theirs" ? String(anchorInfo.owner.rosterId) : partner}
+              disabled={anchorInfo?.side === "theirs"}
+              title={anchorInfo?.side === "theirs" ? `Locked to ${anchorInfo.owner.name}, who owns ${anchorInfo.asset.label}` : undefined}
+              onChange={(e) => { setPartner(e.target.value); setDirty(true); }}
+              className="rounded-lg border border-line-strong bg-surface-2 px-2 py-1.5 text-sm text-ink disabled:opacity-70"
+            >
               <option value="all">All teams</option>
               {partners.map((p) => (
                 <option key={p.rosterId} value={p.rosterId}>{p.name} ({p.strategy})</option>
@@ -178,15 +203,26 @@ export function TradeHub({
       </Card>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_400px]">
-        {/* Proposals */}
-        <div className="space-y-3">
+        {/* Proposals (dimmed while a new search runs) */}
+        <div className={clsx("space-y-3 transition-opacity", pending && "pointer-events-none opacity-50")} aria-busy={pending}>
           <div className="flex items-center justify-between">
             <h2 className="text-[15px] font-semibold text-ink">
-              {proposals.length} proposals <span className="font-normal text-ink-3">· {objective} objective{dirty && " · filters changed, press Find trades"}</span>
+              {proposals.length} proposals
+              <span className="font-normal text-ink-3">
+                {anchorInfo && ` · ${anchorInfo.side === "mine" ? "shopping" : "acquiring"} ${anchorInfo.asset.label}`} · {objective} objective{dirty && " · filters changed, press Find trades"}
+              </span>
             </h2>
           </div>
           {proposals.length === 0 && (
-            <Card><p className="px-4 py-8 text-center text-sm text-ink-3">No trades met the realism filters. Loosen position/age filters, allow more assets per side, or remove untouchables.</p></Card>
+            <Card>
+              <p className="px-4 py-8 text-center text-sm text-ink-3">
+                {anchorInfo
+                  ? anchorInfo.side === "mine"
+                    ? `No realistic deals include ${anchorInfo.asset.label}. Try 3 assets per side, allow picks, or a different objective.`
+                    : `No realistic package lands ${anchorInfo.asset.label} from ${anchorInfo.owner.name}. Try 3 assets per side or offering picks.`
+                  : "No trades met the realism filters. Loosen position/age filters, allow more assets per side, or remove untouchables."}
+              </p>
+            </Card>
           )}
           {proposals.map((e) => {
             const open = expanded === e.id;
@@ -430,4 +466,76 @@ function CompareTable({ items, onRemove }: { items: TradeEvaluation[]; onRemove:
       </div>
     </Card>
   );
+}
+
+/** "Build around a player": pick one of your assets to shop, or another team's to acquire. */
+function AnchorPicker({
+  me,
+  partners,
+  value,
+  info,
+  onChange,
+  disabled,
+}: {
+  me: HubTeam;
+  partners: HubTeam[];
+  value: string | null;
+  info: { asset: TradeAsset; side: "mine" | "theirs"; owner: HubTeam } | null;
+  onChange: (id: string | null) => void;
+  disabled?: boolean;
+}) {
+  const option = (a: TradeAsset) => (
+    <option key={a.assetId} value={a.assetId}>
+      {a.label}
+      {a.kind === "player" ? ` · ${a.position ?? "?"}` : ""} · {fmtInt(a.value)}
+    </option>
+  );
+  const byValue = (xs: TradeAsset[]) => xs.filter((a) => a.value > 0).sort((a, b) => b.value - a.value);
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-3">
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+        <Crosshair aria-hidden className="size-3.5" /> Build around
+      </span>
+      <select
+        value={value ?? ""}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value || null)}
+        aria-label="Build trades around a player or pick"
+        className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface-2 px-2 py-1.5 text-sm text-ink sm:max-w-sm"
+      >
+        <option value="">Any player (best ideas across the league)</option>
+        <optgroup label={`Shop one of mine · ${me.name}`}>{byValue(me.assets).map(option)}</optgroup>
+        {partners.map((p) => (
+          <optgroup key={p.rosterId} label={`Get from ${p.name}`}>
+            {byValue(p.assets).map(option)}
+          </optgroup>
+        ))}
+      </select>
+      {info && (
+        <>
+          <span className="text-xs text-ink-2">
+            {info.side === "mine" ? (
+              <>Every proposal sends <b className="text-ink">{info.asset.label}</b>; partners across the league.</>
+            ) : (
+              <>Every proposal lands <b className="text-ink">{info.asset.label}</b> from {info.owner.name} ({info.owner.strategy}).</>
+            )}
+          </span>
+          <button type="button" onClick={() => onChange(null)} disabled={disabled} className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-2 py-1 text-xs text-ink-2 hover:text-ink">
+            <X aria-hidden className="size-3.5" /> Clear
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function findAnchor(anchor: string | null, me: HubTeam, partners: HubTeam[]): { asset: TradeAsset; side: "mine" | "theirs"; owner: HubTeam } | null {
+  if (!anchor) return null;
+  const mine = me.assets.find((a) => a.assetId === anchor);
+  if (mine) return { asset: mine, side: "mine", owner: me };
+  for (const p of partners) {
+    const a = p.assets.find((x) => x.assetId === anchor);
+    if (a) return { asset: a, side: "theirs", owner: p };
+  }
+  return null;
 }
