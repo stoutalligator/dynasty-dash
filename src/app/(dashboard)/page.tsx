@@ -8,6 +8,7 @@ import { PageSkeleton } from "@/components/page-skeleton";
 import { Recommendations } from "@/components/team/recommendations";
 import { PicksCard, PositionGradesCard, StrategyCard, TeamHeader, TeamStatTiles } from "@/components/team/team-panels";
 import { ProposalSummary } from "@/components/trades/proposal-summary";
+import { ValueMoversCard } from "@/components/team/value-movers";
 import { Card, CardHeader, InjuryBadge, Notice, PosBadge } from "@/components/ui";
 import { getLeague, myTeam } from "@/lib/server/data";
 import { defaultTrades, myRecommendations } from "@/lib/server/insights";
@@ -88,6 +89,7 @@ async function Dashboard() {
         <div className="space-y-5">
           <StrategyCard t={t} />
           <PositionGradesCard t={t} model={model} />
+          <ValueMoversCard t={t} model={model} />
           <Card>
             <CardHeader title="League outlook" subtitle="Inferred from observable data; overrides respected" />
             <StrategyDistribution model={model} />

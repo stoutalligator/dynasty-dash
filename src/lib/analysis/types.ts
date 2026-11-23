@@ -60,6 +60,8 @@ export type PlayerView = {
   value: number | null;
   redraftValue: number | null;
   positionRank: number | null;
+  /** Change in market value over the last 30 days (third-party source only). */
+  valueTrend30: number | null;
   valueSource: ValueSource;
   /** Adjusted PPG the team's best lineup would lose without this player. */
   lineupImpact: number;

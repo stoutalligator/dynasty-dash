@@ -23,7 +23,20 @@ export function Avatar({ src, name, size = 28, className }: { src: string | null
       </span>
     );
   }
-  return <img src={src} alt="" style={style} loading="lazy" onError={() => setFailed(true)} className={clsx("shrink-0 rounded-full bg-surface-3 object-cover", className)} />;
+  return (
+    <img
+      src={src}
+      alt=""
+      style={style}
+      loading="lazy"
+      // A server-rendered image can fail before hydration attaches onError; check once on mount.
+      ref={(img) => {
+        if (img && img.complete && img.naturalWidth === 0) setFailed(true);
+      }}
+      onError={() => setFailed(true)}
+      className={clsx("shrink-0 rounded-full bg-surface-3 object-cover", className)}
+    />
+  );
 }
 
 /** Sleeper's public headshot CDN; falls back to initials when an image is missing. */

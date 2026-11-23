@@ -60,7 +60,8 @@ export function ProposalSummary({ e, compact }: { e: TradeEvaluation; compact?: 
           <FitBadge fit={e.fit} />
         </div>
       </div>
-      <div className="mt-2 grid gap-2 sm:grid-cols-2 sm:gap-3">
+      {/* Compact cards sit in narrow columns: stack the sides so player names aren't cut off. */}
+      <div className={clsx("mt-2 grid gap-2", !compact && "sm:grid-cols-2 sm:gap-3")}>
         <div className="rounded-lg bg-surface-2/60 px-2.5 py-2">
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-3">You give</div>
           <ul>{e.mine.gives.map((a) => <AssetLine key={a.assetId} a={a} />)}</ul>

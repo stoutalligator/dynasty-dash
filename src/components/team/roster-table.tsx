@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PlayerAvatar } from "@/components/avatar";
 import { PlayerDrawer } from "@/components/player-drawer";
-import { InjuryBadge, InfoTip, PosBadge } from "@/components/ui";
+import { InjuryBadge, InfoTip, PosBadge, ValueTrend } from "@/components/ui";
 import type { PlayerView } from "@/lib/analysis/types";
 import type { RosterSlot } from "@/lib/league/models";
 import { fmtAge, fmtInt, fmtPts } from "@/lib/format";
@@ -175,6 +175,7 @@ export function RosterTable({
               </div>
               <div className="tnum shrink-0 text-right">
                 <div className="text-sm text-ink">{p.value != null ? fmtInt(p.value) : "—"}</div>
+                <ValueTrend trend={p.valueTrend30} value={p.value} className="justify-end" />
                 <div className="text-[11px] text-ink-3">
                   {p.prod && p.prod.activeWeeks > 0 ? `${fmtPts(p.prod.ppg)} ppg` : "no pts"}
                   {p.projWeek != null && p.projWeek > 0 && ` · proj ${fmtPts(p.projWeek)}`}
@@ -247,6 +248,7 @@ export function RosterTable({
                   <td className="px-2 py-2 text-right">
                     <span className="text-ink">{p.value != null ? fmtInt(p.value) : "—"}</span>
                     {p.positionRank != null && <span className="ml-1 text-[10px] text-ink-3">{p.position}{p.positionRank}</span>}
+                    <ValueTrend trend={p.valueTrend30} value={p.value} className="ml-1 block justify-end" />
                   </td>
                   <td className={clsx("py-2 pl-2 pr-4 text-right", p.lineupImpact > 0 ? "text-ink" : "text-ink-3")}>{p.lineupImpact > 0 ? fmtPts(p.lineupImpact) : "0"}</td>
                 </tr>,

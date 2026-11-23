@@ -106,12 +106,13 @@ Sleeper is the source of truth for league settings, rosters, ownership, matchups
 | Remaining schedule | `/league/{id}/matchups/{week}` (future weeks) | 24 h |
 | Trending adds/drops | `/players/nfl/trending/{add,drop}` | 30 min |
 | Past seasons | `previous_league_id` chain + `/league/{id}/winners_bracket` | 7 days (completed seasons) |
-| Dynasty values | FantasyCalc `values/current` | 12 h |
+| Dynasty values | FantasyCalc `values/current` (incl. 30-day trend) | 6 h, and on every **Refresh** |
 
 ¹ Public but undocumented Sleeper endpoints. Scoring their raw stats with this league's settings reproduces Sleeper's own matchup points exactly (verified: 0 mismatches across all rostered players). If either feed is unavailable, production falls back to league matchups (rostered players only) and the app says so.
 
 - **Automatic updates.** Every page load rebuilds the analysis from the cached data, so trades and pickups appear once their cache window passes.
-- **Manual refresh.** The header's **Refresh** button pulls league data, stats and trends immediately. **Settings → Refresh all** also re-downloads the player database, valuations and history.
+- **No waiting on big downloads.** Large, slow-changing sources (player database, projections, past weeks' stats, values, trending, future schedule) are served from cache the moment they expire and refreshed in the background. League data (rosters, matchups, transactions) is always fetched before the page renders once its window passes.
+- **Manual refresh.** The header's **Refresh** button pulls league data, stats, trends and player values immediately. **Settings → Refresh all** also re-downloads the player database and history. The header shows when league data and values were last synced; Settings lists every source.
 - **Failure handling.** Responses are validated with Zod before they are cached. Failed requests are retried on 429/5xx with backoff. If a refresh fails, the last good copy is served and flagged as stale. Data is never fabricated.
 - **Issue reporting.** Problems are listed on **Settings → Data issues**.
 
@@ -119,12 +120,12 @@ Sleeper is the source of truth for league settings, rosters, ownership, matchups
 
 | Page | Highlights |
 |---|---|
-| **Dashboard** | Record and standing, team outlook with reasons, recommended next actions, best trade opportunities, top waiver adds, positional grades, league strategy distribution, injuries, draft capital, recent activity. |
+| **Dashboard** | Record and standing, team outlook with reasons, recommended next actions, best trade opportunities (with the trade-deadline status), top waiver adds, positional grades, **value movers** (your roster's 30-day market-value change, biggest risers and fallers), league strategy distribution, injuries, draft capital, recent activity. |
 | **My Team** | Roster grouped by starter/bench/taxi/IR: production, snap share, this week's projection, value, lineup impact. Strategy panel with override; best lineup and projected lineup for this week; needs/surplus; picks; recommendations for **Contend now / Retool / Rebuild**. |
 | **League** | Standings, power rankings, team profiles (every team gets the same analysis page), opportunities, activity feed, settings and scoring. |
 | **Players** | Every rostered player plus every free agent with production, a projection, a dynasty value or add activity; search and filters. |
 | **Waiver Wire** | Every unrostered QB/RB/WR/TE ranked by a transparent pickup score. Tiers (Strong add / Worth a look / Stash / Monitor), reasons, weekly sparkbars, best fits for your roster, drop candidates, FAAB remaining, trending-and-available, recently dropped. |
-| **Trade Hub** | Two-team engine (objective, partner, position, age, package size and pick controls; untouchable / trade-block / target flags; two-sided breakdowns; builder; compare up to three; saved proposals re-checked against current rosters) and an exploratory **three-team** search. |
+| **Trade Hub** | Trade-deadline banner (deadline near, this week, or passed). Two-team engine (objective, partner, position, age, package size and pick controls; untouchable / trade-block / target flags; two-sided breakdowns; builder; compare up to three; saved proposals re-checked against current rosters) and an exploratory **three-team** search. |
 | **Draft Picks** | Ownership matrix by team × season × round, traded-pick list, estimated values. |
 | **Analytics** | Weekly score vs. league median, age vs. asset value, lineup efficiency, positional heatmap, weekly scores, production left on benches, and a **model check** against past seasons. |
 | **History** | Champions and final standings for every season, manager trading profiles, trade ledger valued with hindsight (traded picks resolved to the players drafted with them), and a who-trades-with-whom matrix. |
@@ -228,7 +229,7 @@ The digest is built from the same model and compared with the previous digest. I
 - your injuries, with new ones flagged
 - the top three trade ideas with their odds change
 - teams whose buy/sell posture changed
-- the trade-deadline countdown and title favorites
+- the trade-deadline countdown and title favorites (no trade ideas once trades are locked)
 
 It is stored in the database and posted to Discord/Slack (`DIGEST_WEBHOOK_URL`) and/or ntfy (`NTFY_TOPIC`).
 

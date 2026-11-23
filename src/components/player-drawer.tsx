@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
 import { PlayerAvatar } from "@/components/avatar";
 import { InjuryBadge, PosBadge } from "@/components/ui";
 import type { PlayerView } from "@/lib/analysis/types";
-import { fmtAge, fmtInt, fmtPts } from "@/lib/format";
+import { fmtAge, fmtInt, fmtPts, fmtSignedInt } from "@/lib/format";
 
 /** Slide-over with a player's game log, usage, projections and value. */
 export function PlayerDrawer({ player: p, teamName, onClose }: { player: PlayerView | null; teamName?: string | null; onClose: () => void }) {
@@ -53,7 +53,11 @@ export function PlayerDrawer({ player: p, teamName, onClose }: { player: PlayerV
             ["Snap %", pr?.snapShareLast3 != null ? `${Math.round(pr.snapShareLast3 * 100)}` : "—", "last 3"],
             ["Proj this wk", fmtPts(p.projWeek), "Sleeper"],
             ["Proj ROS", fmtPts(p.projRos, 0), "through finals"],
-            ["Value", p.value != null ? fmtInt(p.value) : "—", p.positionRank ? `${p.position}${p.positionRank}` : p.valueSource === "internal-estimate" ? "estimate" : ""],
+            [
+              "Value",
+              p.value != null ? fmtInt(p.value) : "—",
+              [p.positionRank ? `${p.position}${p.positionRank}` : p.valueSource === "internal-estimate" ? "estimate" : "", p.valueTrend30 ? `${fmtSignedInt(p.valueTrend30)} 30d` : ""].filter(Boolean).join(" · "),
+            ],
           ].map(([label, value, sub]) => (
             <div key={label} className="rounded-lg bg-surface-2/70 px-2 py-2">
               <dt className="text-ink-3">{label}</dt>

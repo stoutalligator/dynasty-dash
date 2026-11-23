@@ -1,8 +1,9 @@
 import clsx from "clsx";
-import { AlertTriangle, CircleAlert, CircleCheck, Info } from "lucide-react";
+import { AlertTriangle, CircleAlert, CircleCheck, Info, TrendingDown, TrendingUp } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Confidence, Strategy } from "@/lib/analysis/types";
 import type { InjuryInfo } from "@/lib/league/models";
+import { fmtSignedInt } from "@/lib/format";
 
 export function Card({ className, children, as: As = "section" }: { className?: string; children: ReactNode; as?: "section" | "div" | "article" }) {
   return <As className={clsx("rounded-xl border border-line bg-surface", className)}>{children}</As>;
@@ -180,4 +181,20 @@ export function SourceTag({ kind, label }: { kind: "sleeper" | "third-party" | "
   const text = label ?? { sleeper: "Sleeper data", "third-party": "Third-party value", "internal-estimate": "Our estimate" }[kind];
   const cls = { sleeper: "text-ink-3 ring-line", "third-party": "text-brand-purple ring-brand-purple/30", "internal-estimate": "text-brand-amber ring-brand-amber/30" }[kind];
   return <span className={clsx("rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset", cls)}>{text}</span>;
+}
+
+/** 30-day market-value change; hidden when the move is negligible (under 2% of value or 50 points). */
+export function ValueTrend({ trend, value, className }: { trend: number | null | undefined; value?: number | null; className?: string }) {
+  if (trend == null || Math.abs(trend) < Math.max(50, Math.abs(value ?? 0) * 0.02)) return null;
+  const up = trend > 0;
+  const Icon = up ? TrendingUp : TrendingDown;
+  return (
+    <span
+      title={`${fmtSignedInt(trend)} market value over the last 30 days`}
+      className={clsx("tnum inline-flex items-center gap-0.5 text-[10px] font-medium", up ? "text-good" : "text-critical", className)}
+    >
+      <Icon aria-hidden className="size-3" />
+      {fmtSignedInt(trend)}
+    </span>
+  );
 }
