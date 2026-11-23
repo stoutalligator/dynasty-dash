@@ -15,7 +15,8 @@ export const generateOptionsSchema = z.object({
   offerPicks: z.boolean().default(true),
   /** Allow receiving draft picks. */
   receivePicks: z.boolean().default(true),
-  maxAssetsPerSide: z.number().int().min(1).max(3).default(2),
+  /** Largest package per side. Defaults to 3: deals are found by value and fit, not a chosen size. */
+  maxAssetsPerSide: z.number().int().min(1).max(3).default(3),
   untouchables: z.array(z.string()).default([]),
   tradeBlock: z.array(z.string()).default([]),
   targets: z.array(z.string()).default([]),
@@ -32,16 +33,30 @@ export type GenerateOptions = z.input<typeof generateOptionsSchema>;
 /** Ignore near-worthless filler so proposals stay realistic. */
 const MIN_ASSET_VALUE = 250;
 const POOL_SIZE = 14;
+/** Three-piece packages are built from the most valuable few (plus anything flagged), keeping the search fast. */
+const POOL3_SIZE = 8;
+/** Tie-breaker: among similar deals, fewer moving pieces are easier to agree on. */
+const PIECE_PENALTY = 0.04;
 
-function combos<T>(items: T[], max: number): T[][] {
+function combos<T>(items: T[], max: number, threeFrom?: Set<T>): T[][] {
   const out: T[][] = [];
   const rec = (start: number, acc: T[]) => {
     if (acc.length) out.push([...acc]);
     if (acc.length === max) return;
-    for (let i = start; i < items.length; i++) rec(i + 1, [...acc, items[i]]);
+    for (let i = start; i < items.length; i++) {
+      // A third piece only when every piece comes from the top-value subset.
+      if (acc.length === 2 && threeFrom && !(threeFrom.has(items[i]) && acc.every((a) => threeFrom.has(a)))) continue;
+      rec(i + 1, [...acc, items[i]]);
+    }
   };
   rec(0, []);
   return out;
+}
+
+/** The assets allowed in three-piece packages: the top few by value, plus flagged/anchor assets. */
+function threeSet(pool: TradeAsset[], keep: (a: TradeAsset) => boolean): Set<TradeAsset> {
+  const byValue = [...pool].sort((a, b) => b.value - a.value);
+  return new Set([...byValue.slice(0, POOL3_SIZE), ...pool.filter(keep)]);
 }
 
 /** Top assets by value, always keeping explicitly flagged ones (and the anchor, whatever its value). */
@@ -96,7 +111,7 @@ export function generateTrades(model: LeagueModel, myRosterId: number, input: Ge
     anchorMine ? anchor : null,
   );
   // Skip packages where a throw-in is under 15% of the headline asset (filler noise).
-  const myCombos = combos(myPool, o.maxAssetsPerSide)
+  const myCombos = combos(myPool, o.maxAssetsPerSide, threeSet(myPool, (a) => block.has(a.assetId) || a.assetId === anchor))
     .filter((c) => !hasFiller(c) && (!anchorMine || hasAnchor(c)))
     .map((c, idx) => ({ assets: c, value: packageValue(c.map((a) => a.value)), idx }));
   // Sorted by value so each partner package only visits my packages within ±25% of its value.
@@ -120,7 +135,7 @@ export function generateTrades(model: LeagueModel, myRosterId: number, input: Ge
     // Their anchor is kept even if it falls outside the position/age filters.
     const theirPool = pool(theirAll.filter((a) => (anchorTheirs && a.assetId === anchor) || wantsAsset(a)), targets, anchorTheirs ? anchor : null);
     // Their combos must contain at least one asset I want; extra pieces may be any of their assets in the pool.
-    const theirCombos = combos(theirPool, o.maxAssetsPerSide)
+    const theirCombos = combos(theirPool, o.maxAssetsPerSide, threeSet(theirPool, (a) => targets.has(a.assetId) || a.assetId === anchor))
       .filter((c) => !hasFiller(c) && (!anchorTheirs || hasAnchor(c)))
       .map((c) => ({ assets: c, value: packageValue(c.map((a) => a.value)) }));
     const activity = model.history?.activityByRoster[partner.team.rosterId];
@@ -138,7 +153,8 @@ export function generateTrades(model: LeagueModel, myRosterId: number, input: Ge
         // Bonuses for user preferences (trade block out, targets in).
         const pref = mine.assets.filter((a) => block.has(a.assetId)).length * 0.75 + theirs.assets.filter((a) => targets.has(a.assetId)).length * 1;
         if (myScore <= 0 && pref === 0) continue;
-        candidates.push({ mine: mine.assets, theirs: theirs.assets, overall: Math.round((overallScore(myScore, partnerScore, activity) + pref) * 100) / 100, pref });
+        const pieces = PIECE_PENALTY * (mine.assets.length + theirs.assets.length - 2);
+        candidates.push({ mine: mine.assets, theirs: theirs.assets, overall: Math.round((overallScore(myScore, partnerScore, activity) + pref - pieces) * 100) / 100, pref: pref - pieces });
       }
     }
     candidates.sort((a, b) => b.overall - a.overall);

@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { loadLeagueModel } from "@/lib/analysis/load-model";
 import { isAuthorizedCron } from "@/lib/auth";
-import { resolveActiveLeague } from "@/lib/league/active";
+import { defaultLeague } from "@/lib/league/active";
 import { defaultTrades } from "@/lib/server/insights";
 import { runAlerts } from "@/lib/alerts/run";
 import { recordSnapshot } from "@/lib/snapshots/store";
@@ -13,9 +13,10 @@ export const maxDuration = 300;
 export async function GET(request: Request) {
   await connection();
   if (!isAuthorizedCron(request.headers.get("authorization"))) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  if (!(await resolveActiveLeague())) return Response.json({ ok: true, skipped: "No league selected yet (visit /setup)." });
+  const active = defaultLeague();
+  if (!active) return Response.json({ ok: true, skipped: "Set SLEEPER_LEAGUE_ID (and MY_ROSTER_ID) for scheduled jobs." });
   const t0 = Date.now();
-  const { model, prefs } = await loadLeagueModel({ refresh: "all" });
+  const { model, prefs } = await loadLeagueModel({ refresh: "all", active });
   // Pre-build the trade ideas the Dashboard, My Team and Trade Hub ask for (same keys as the pages).
   if (model.myRosterId != null) for (const objective of ["contender", "retool", "rebuild"] as const) defaultTrades(model, prefs, objective);
   const me = model.teams.find((t) => t.team.rosterId === model.myRosterId);

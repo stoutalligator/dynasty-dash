@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createStores, type Stores } from "@/lib/store";
 
 const envSchema = z.object({
-  /** Optional default league; normally chosen in the app at /setup. */
+  /** The owner's league for scheduled jobs (refresh, digest, alerts); visitors choose in the app. */
   SLEEPER_LEAGUE_ID: z
     .string()
     .regex(/^\d+$/, "SLEEPER_LEAGUE_ID must be a numeric Sleeper league id")
@@ -23,8 +23,6 @@ const envSchema = z.object({
   KV_REST_API_TOKEN: z.string().optional(),
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
-  APP_PASSWORD: z.string().min(8, "APP_PASSWORD must be at least 8 characters").optional(),
-  AUTH_SECRET: z.string().min(16).optional(),
   CRON_SECRET: z.string().min(16).optional(),
   DIGEST_WEBHOOK_URL: z.string().url().optional(),
   NTFY_TOPIC: z.string().regex(/^[\w-]{6,64}$/).optional(),
@@ -42,7 +40,6 @@ export type AppConfig = {
   cacheDir: string;
   dataDir: string;
   storage: Stores;
-  appPassword: string | undefined;
   cronSecret: string | undefined;
   digestWebhookUrl: string | undefined;
   ntfyTopic: string | undefined;
@@ -85,7 +82,6 @@ export function getConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       namespace: "dynasty",
       onVercel: !!env.VERCEL,
     }),
-    appPassword: e.APP_PASSWORD,
     cronSecret: e.CRON_SECRET,
     digestWebhookUrl: e.DIGEST_WEBHOOK_URL,
     ntfyTopic: e.NTFY_TOPIC,

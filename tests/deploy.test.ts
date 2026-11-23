@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { checkPassword, createSessionToken, isAuthorizedCron, safeEqual, verifySessionToken } from "@/lib/auth";
+import { isAuthorizedCron, safeEqual } from "@/lib/auth";
 import { createStores, FileStore, PostgresStore, UpstashStore } from "@/lib/store";
 
 const tmp = () => mkdtempSync(path.join(os.tmpdir(), "dd-store-"));
@@ -61,30 +61,9 @@ describe("UpstashStore", () => {
   });
 });
 
-describe("auth", () => {
+describe("cron auth", () => {
   afterEach(() => {
-    delete process.env.APP_PASSWORD;
-    delete process.env.AUTH_SECRET;
     delete process.env.CRON_SECRET;
-  });
-
-  it("is open when no password is configured", async () => {
-    expect(await verifySessionToken(undefined)).toBe(true);
-    expect(checkPassword("anything")).toBe(false);
-  });
-
-  it("signs, verifies and expires session tokens", async () => {
-    process.env.APP_PASSWORD = "correct horse";
-    const token = await createSessionToken(Date.now());
-    expect(await verifySessionToken(token)).toBe(true);
-    expect(await verifySessionToken(token.replace(/.$/, (c) => (c === "0" ? "1" : "0")))).toBe(false);
-    expect(await verifySessionToken(await createSessionToken(Date.now() - 31 * 86400_000))).toBe(false);
-    expect(await verifySessionToken(undefined)).toBe(false);
-    expect(checkPassword("correct horse")).toBe(true);
-    expect(checkPassword("wrong")).toBe(false);
-    // Changing the password invalidates existing sessions.
-    process.env.APP_PASSWORD = "new password";
-    expect(await verifySessionToken(token)).toBe(false);
   });
 
   it("authorizes Vercel Cron only with the bearer secret", () => {

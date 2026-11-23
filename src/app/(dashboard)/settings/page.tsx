@@ -9,8 +9,7 @@ import { Card, CardHeader, Notice, PageTitle, SourceTag, StrategyBadge } from "@
 import { fmtDateTime, fmtRelative } from "@/lib/format";
 import { getLeague } from "@/lib/server/data";
 import { getConfig } from "@/lib/config";
-import { authEnabled } from "@/lib/auth";
-import { logout } from "@/app/login/actions";
+import { switchUserAction } from "@/app/setup/actions";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -101,7 +100,8 @@ async function SettingsContent() {
           <dl className="divide-y divide-line/60 px-4 pb-3 text-sm">
             {[
               ["Storage", { file: "Local files (.cache / data)", postgres: "Postgres (Neon)", upstash: "Upstash Redis" }[cfg.storage.cache.kind]],
-              ["Sign-in", authEnabled() ? "Password required (APP_PASSWORD)" : "Open: set APP_PASSWORD before deploying"],
+              ["Sign-in", "Sleeper username per visitor; the league choice lasts until the browser is closed (nothing stored on the server)"],
+              ["Scheduled league", cfg.leagueId ? `SLEEPER_LEAGUE_ID ${cfg.leagueId}${cfg.myRosterId ? ` · team ${cfg.myRosterId}` : ""} (refresh, digest, alerts)` : "Not set: scheduled jobs skip (set SLEEPER_LEAGUE_ID)"],
               ["Scheduled jobs", cfg.cronSecret ? "Enabled (CRON_SECRET set)" : "CRON_SECRET not set: cron endpoints refuse requests"],
               ["Digest delivery", [cfg.digestWebhookUrl ? "webhook" : null, cfg.ntfyTopic ? "ntfy" : null].filter(Boolean).join(" + ") || "In-app only"],
               [
@@ -121,11 +121,9 @@ async function SettingsContent() {
           {cfg.storage.warning && <div className="px-4 pb-3"><Notice level="warning">{cfg.storage.warning}</Notice></div>}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
             <div className="flex items-center gap-2 text-xs text-ink-3">Appearance <ThemeToggle /></div>
-            {authEnabled() && (
-              <form action={logout}>
-                <button type="submit" className="rounded-lg border border-line-strong bg-surface-2 px-3 py-1.5 text-xs text-ink-2 hover:text-ink">Sign out</button>
-              </form>
-            )}
+            <form action={switchUserAction}>
+              <button type="submit" className="rounded-lg border border-line-strong bg-surface-2 px-3 py-1.5 text-xs text-ink-2 hover:text-ink">Switch user</button>
+            </form>
           </div>
         </Card>
 

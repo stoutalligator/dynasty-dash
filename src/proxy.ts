@@ -1,22 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { authEnabled, SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import { SELECTION_COOKIE } from "@/lib/league/session";
 
 /**
- * Password gate for every page, server action and API route (when APP_PASSWORD is set).
- * Cron endpoints authenticate with CRON_SECRET instead, inside their route handlers.
+ * No site password: every visitor signs in with their Sleeper username at /setup, and the chosen
+ * league lives in a browser-session cookie. Without one, pages go to /setup. Cron endpoints
+ * authenticate with CRON_SECRET inside their route handlers.
  */
 export async function proxy(request: NextRequest) {
-  if (!authEnabled()) return NextResponse.next();
   const { pathname } = request.nextUrl;
-  if (pathname === "/login" || pathname.startsWith("/api/cron/")) return NextResponse.next();
-  if (await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value)) return NextResponse.next();
+  if (pathname === "/setup" || pathname.startsWith("/api/cron/")) return NextResponse.next();
+  if (pathname === "/login") return NextResponse.redirect(new URL("/setup", request.url));
+  if (request.cookies.has(SELECTION_COOKIE)) return NextResponse.next();
   if (request.method !== "GET" || pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Choose a league first (/setup)." }, { status: 401 });
   }
-  const url = request.nextUrl.clone();
-  url.pathname = "/login";
-  url.search = `?next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
-  return NextResponse.redirect(url);
+  return NextResponse.redirect(new URL("/setup", request.url));
 }
 
 export const config = {

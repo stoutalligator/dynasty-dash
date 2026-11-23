@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { readSelection, writeSelection } from "@/lib/league/active";
+import { clearSelection, readSelection, writeSelection } from "@/lib/league/active";
 import { findUserLeagues, lookupLeague } from "@/lib/league/discover";
 import { createSleeperClient } from "@/lib/sleeper/client";
 
@@ -32,9 +32,11 @@ const chooseSchema = z.object({
   rosterId: z.number().int().positive().nullable().default(null),
 });
 
-/** Save the chosen league (and how to recognise your team), then open the dashboard. */
+/**
+ * Save the chosen league (and how to recognise your team) for this browser session. Returns
+ * instead of redirecting so the client can navigate and stream the dashboard right away.
+ */
 export async function chooseLeagueAction(input: z.input<typeof chooseSchema>): Promise<Result<null>> {
-  let target = "/";
   try {
     const c = chooseSchema.parse(input);
     const league = await createSleeperClient().league(c.leagueId);
@@ -51,9 +53,14 @@ export async function chooseLeagueAction(input: z.input<typeof chooseSchema>): P
       recent: [entry, ...(prev?.recent ?? []).filter((r) => r.leagueId !== entry.leagueId)].slice(0, 8),
       selectedAt: new Date().toISOString(),
     });
-    target = "/";
+    return { ok: true, data: null };
   } catch (err) {
     return fail(err);
   }
-  redirect(target);
+}
+
+/** Forget this browser's league choice and go back to the Sleeper username screen. */
+export async function switchUserAction(): Promise<void> {
+  await clearSelection();
+  redirect("/setup");
 }

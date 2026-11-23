@@ -48,7 +48,6 @@ export function TradeHub({
   const [positions, setPositions] = useState<string[]>([]);
   const [maxAge, setMaxAge] = useState("");
   const [offerPicks, setOfferPicks] = useState(true);
-  const [maxAssets, setMaxAssets] = useState("2");
   const [proposals, setProposals] = useState(initialProposals);
   const [error, setError] = useState<string | null>(null);
   const [flags, setFlags] = useState(initialFlags);
@@ -81,7 +80,6 @@ export function TradeHub({
         positions,
         maxAge: maxAge ? Number(maxAge) : undefined,
         offerPicks,
-        maxAssetsPerSide: Number(maxAssets),
         limit: 40,
         perPartner: theirAnchor || partner !== "all" ? 15 : 4,
         anchorAssetId: a ?? undefined,
@@ -191,9 +189,6 @@ export function TradeHub({
           <Field label="Max age (incoming)">
             <Segmented value={maxAge} onChange={(v) => { setMaxAge(v); setDirty(true); }} options={["", "24", "26", "28"]} labels={{ "": "Any", "24": "≤24", "26": "≤26", "28": "≤28" }} label="Max age" />
           </Field>
-          <Field label="Assets per side">
-            <Segmented value={maxAssets} onChange={(v) => { setMaxAssets(v); setDirty(true); }} options={["1", "2", "3"]} label="Assets per side" />
-          </Field>
           <label className="flex items-center gap-1.5 pb-1.5 text-xs text-ink-2">
             <input type="checkbox" checked={offerPicks} onChange={(e) => { setOfferPicks(e.target.checked); setDirty(true); }} className="accent-[var(--color-accent)]" />
             Offer my picks
@@ -207,7 +202,6 @@ export function TradeHub({
             <Search aria-hidden className="size-4" /> {pending ? "Searching…" : "Find trades"}
           </button>
         </div>
-        {maxAssets === "3" && <p className="px-4 pb-3 text-[11px] text-ink-3">3-asset packages search many more combinations and can take several seconds.</p>}
         {error && <p className="px-4 pb-3 text-sm text-critical">{error}</p>}
       </Card>
 
@@ -227,9 +221,9 @@ export function TradeHub({
               <p className="px-4 py-8 text-center text-sm text-ink-3">
                 {anchorInfo
                   ? anchorInfo.side === "mine"
-                    ? `No realistic deals include ${anchorInfo.asset.label}. Try 3 assets per side, allow picks, or a different objective.`
-                    : `No realistic package lands ${anchorInfo.asset.label} from ${anchorInfo.owner.name}. Try 3 assets per side or offering picks.`
-                  : "No trades met the realism filters. Loosen position/age filters, allow more assets per side, or remove untouchables."}
+                    ? `No realistic deals include ${anchorInfo.asset.label}. Try allowing picks or a different objective.`
+                    : `No realistic package lands ${anchorInfo.asset.label} from ${anchorInfo.owner.name}. Try offering picks or a different objective.`
+                  : "No trades met the realism filters. Loosen the position/age filters or remove untouchables."}
               </p>
             </Card>
           )}

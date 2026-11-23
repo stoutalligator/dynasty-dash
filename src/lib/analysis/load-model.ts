@@ -1,5 +1,5 @@
 import { loadLeagueHistory } from "@/lib/history/load";
-import { resolveActiveLeague } from "@/lib/league/active";
+import { resolveActiveLeague, type ActiveLeague } from "@/lib/league/active";
 import { loadLeagueSnapshot, NoLeagueSelectedError, type RefreshScope } from "@/lib/league/load-snapshot";
 import type { LeagueSnapshot } from "@/lib/league/models";
 import { logger } from "@/lib/log";
@@ -21,8 +21,8 @@ const memo = new Map<string, { key: string; snapshot: LeagueSnapshot; model: Lea
  * stats/projections + valuations + league history + user preferences → analytical model.
  * Rebuilt whenever any input changes. Optional sources degrade gracefully when unavailable.
  */
-export async function loadLeagueModel(opts: { refresh?: RefreshScope } = {}): Promise<{ model: LeagueModel; snapshot: LeagueSnapshot; prefs: Prefs }> {
-  const active = await resolveActiveLeague();
+export async function loadLeagueModel(opts: { refresh?: RefreshScope; active?: ActiveLeague } = {}): Promise<{ model: LeagueModel; snapshot: LeagueSnapshot; prefs: Prefs }> {
+  const active = opts.active ?? (await resolveActiveLeague());
   if (!active) throw new NoLeagueSelectedError();
   const snapshot = await loadLeagueSnapshot({ refresh: opts.refresh, active });
   const { league } = snapshot;
@@ -40,7 +40,7 @@ export async function loadLeagueModel(opts: { refresh?: RefreshScope } = {}): Pr
       { superflex: league.format.superflex, receptionPoints: league.format.receptionPoints, teams: snapshot.teams.length, dynasty: league.leagueType !== 0 },
       { force },
     ),
-    readPrefs(active.leagueId),
+    readPrefs({ leagueId: active.leagueId, rosterId: snapshot.verification.myRosterId }),
     loadStatsBundle({ season: league.season, completedWeeks, projectionWeeks, upcomingFrom: league.currentWeek ?? undefined, scoring: league.scoringSettings, force }).catch((err) => {
       log.warn("stats bundle failed", { error: String(err) });
       return null;
@@ -60,7 +60,8 @@ export async function loadLeagueModel(opts: { refresh?: RefreshScope } = {}): Pr
     history?.seasons.map((s) => s.season) ?? null,
     prefs.strategyOverrides,
   ]);
-  const prev = memo.get(active.leagueId);
+  const memoKey = `${active.leagueId}:${snapshot.verification.myRosterId ?? "guest"}`;
+  const prev = memo.get(memoKey);
   if (prev && prev.snapshot === snapshot && prev.key === key) return { model: prev.model, snapshot, prefs };
 
   const model = buildLeagueModel({ snapshot, external: set, providerStatus: status, prefs, stats, trending, history });
@@ -99,6 +100,6 @@ export async function loadLeagueModel(opts: { refresh?: RefreshScope } = {}): Pr
     ...(set && status.fetchedAt ? { valuations: { fetchedAt: status.fetchedAt, source: "cache" as const, stale: status.stale, ...(status.error ? { error: status.error } : {}) } } : {}),
     ...(trending ? { trending: { fetchedAt: trending.fetchedAt, source: "cache" as const, stale: false } } : {}),
   };
-  memo.set(active.leagueId, { key, snapshot, model });
+  memo.set(memoKey, { key, snapshot, model });
   return { model, snapshot, prefs };
 }

@@ -8,6 +8,7 @@ import { Card, CardHeader, Notice, PageTitle } from "@/components/ui";
 import { getConfig } from "@/lib/config";
 import { readDigestHistory, readLatestDigest } from "@/lib/digest/run";
 import { fmtDateTime } from "@/lib/format";
+import { getLeague } from "@/lib/server/data";
 import { resolveActiveLeague } from "@/lib/league/active";
 import { redirect } from "next/navigation";
 
@@ -18,16 +19,18 @@ async function DigestContent() {
   const c = getConfig();
   const active = await resolveActiveLeague();
   if (!active) redirect("/setup");
-  const [digest, history] = await Promise.all([readLatestDigest(active.leagueId), readDigestHistory(active.leagueId)]);
+  const { model } = await getLeague();
+  const owner = { leagueId: model.league.id, rosterId: model.myRosterId };
+  const [digest, history] = await Promise.all([readLatestDigest(owner), readDigestHistory(owner)]);
   const channels = [c.digestWebhookUrl ? "webhook" : null, c.ntfyTopic ? `ntfy (${c.ntfyTopic})` : null].filter(Boolean);
   return (
     <>
       <PageTitle title="Weekly digest" subtitle="Waiver fits, injuries, trade ideas and league changes, compared with the previous digest">
-        <DigestActions canDeliver={channels.length > 0} />
+        <DigestActions />
       </PageTitle>
       <div className="mb-5">
         <Notice level="info">
-          Scheduled every Tuesday (see vercel.json). Delivery: {channels.length ? channels.join(" and ") : "none configured. Set DIGEST_WEBHOOK_URL (Discord or Slack) or NTFY_TOPIC to get it on your phone"}.
+          Built for your team each time you press “Build now”. The scheduled Tuesday digest is sent only for the site owner&apos;s league (SLEEPER_LEAGUE_ID){channels.length ? ` to ${channels.join(" and ")}` : ""}.
         </Notice>
       </div>
       {!digest ? (

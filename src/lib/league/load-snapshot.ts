@@ -236,9 +236,11 @@ export async function loadLeagueSnapshot(opts: LoadOptions = {}): Promise<League
 
   // Reuse the previous snapshot object when no source changed, so downstream memoization holds.
   const key = JSON.stringify([Object.entries(fresh).map(([k, f]) => [k, f.fetchedAt, f.stale]), transactions.length, weeks.map((w) => w.week), issues.length]);
-  const prev = memo.get(id);
+  // Keyed by league *and* visitor: the snapshot carries who "my team" is.
+  const memoId = `${id}:${active.userId ?? ""}:${active.rosterId ?? ""}:${active.expectedTeamName ?? ""}`;
+  const prev = memo.get(memoId);
   if (prev && prev.key === key) return prev.snapshot;
-  memo.set(id, { key, snapshot });
+  memo.set(memoId, { key, snapshot });
   log.info("snapshot built", { teams: teams.length, transactions: transactions.length, weeks: weeks.length, issues: issues.length });
   return snapshot;
 }

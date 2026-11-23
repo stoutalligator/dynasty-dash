@@ -10,7 +10,7 @@
 - **Simulates the rest of the season** to estimate every team's playoff and title odds, and shows how each trade would change yours.
 - **Sends a weekly digest** to Discord, Slack or your phone.
 
-On first visit you choose a league: enter your Sleeper username and pick from your leagues, or paste any league ID. Your team is recognised from your Sleeper account. You can switch between leagues at any time from the sidebar, and each league keeps its own preferences, saved trades and digest. Nothing is hardcoded to one league: format, scoring, roster slots, baselines and history all come from the chosen league's live data.
+**Sign in with your Sleeper username**: there's no site password. Anyone (you, your league-mates, friends in other leagues) enters a Sleeper username, picks a league, and lands on the dashboard; your team is recognised from the account. The choice is kept in a browser-session cookie only, so it's forgotten when the browser closes and nothing about who visited is stored on the server. Trade block, untouchables, targets, saved trades, strategy overrides and digests are stored per team in each league, so league-mates don't share them. Nothing is hardcoded to one league: format, scoring, roster slots, baselines and history all come from the chosen league's live data.
 
 ## Quick start
 
@@ -33,7 +33,6 @@ No Sleeper account, API key, database or paid service is needed locally: data is
 
    | Variable | Value |
    |---|---|
-   | `APP_PASSWORD` | A password for the site (8+ characters). Without it the site is public. |
    | `CRON_SECRET` | A long random string. Vercel Cron sends it automatically. |
    | `DATABASE_URL` | Set by the Neon integration. |
    | `DIGEST_WEBHOOK_URL` *(optional)* | Discord or Slack incoming-webhook URL for the weekly digest. |
@@ -61,8 +60,8 @@ What happens on Vercel without a database: the app still works using temporary s
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `SLEEPER_LEAGUE_ID` | — | Optional default league, used only until a league is chosen in the app (`/setup`). |
-| `MY_ROSTER_ID` / `EXPECTED_TEAM_NAME` | — | Optional: identify your team in that default league. With in-app setup your team comes from your Sleeper account instead. |
+| `SLEEPER_LEAGUE_ID` | — | Your league for scheduled jobs (daily refresh, weekly digest, alerts). Visitors choose their own league at sign-in. |
+| `MY_ROSTER_ID` / `EXPECTED_TEAM_NAME` | — | Your team in that league (for the digest and alerts). |
 | `VALUATION_PROVIDER` | `fantasycalc` | `fantasycalc` (free third-party dynasty values) or `none` (internal estimate only). |
 | `FUTURE_PICK_SEASONS` | `3` | How many upcoming rookie drafts to show pick ownership for. |
 | `SIM_RUNS` | `10000` | Simulated seasons for playoff/title odds. Each trade proposal uses 3,000 runs. |
@@ -70,8 +69,6 @@ What happens on Vercel without a database: the app still works using temporary s
 | `DATABASE_URL` | — | Neon/Postgres connection string (`POSTGRES_URL` is also accepted). |
 | `UPSTASH_REDIS_REST_URL` / `_TOKEN` | — | Optional Redis alternative (`KV_REST_API_*` also accepted). |
 | `CACHE_DIR` / `DATA_DIR` | `.cache` / `data` | Local file storage when no database is configured (gitignored). |
-| `APP_PASSWORD` | — | Site password. Leave empty locally. |
-| `AUTH_SECRET` | derived | Signs session cookies. |
 | `CRON_SECRET` | — | Bearer secret required by `/api/cron/*`. |
 | `DIGEST_WEBHOOK_URL` / `NTFY_TOPIC` | — | Digest delivery: Discord or Slack webhook, and/or ntfy push. |
 | `APP_URL` | Vercel URL | Base URL for links in the digest. |
@@ -127,7 +124,7 @@ Sleeper is the source of truth for league settings, rosters, ownership, matchups
 | **League** | Standings, power rankings, team profiles (every team gets the same analysis page), opportunities, activity feed, settings and scoring. |
 | **Players** | Every rostered player plus every free agent with production, a projection, a dynasty value or add activity; search and filters. |
 | **Waiver Wire** | Every unrostered QB/RB/WR/TE ranked by a transparent pickup score. Tiers (Strong add / Worth a look / Stash / Monitor), reasons, weekly sparkbars, best fits for your roster, drop candidates, FAAB remaining, trending-and-available, recently dropped. |
-| **Trade Hub** | Trade-deadline banner (deadline near, this week, or passed). **Build around a player:** pick one of yours to shop it to every team, or another team's player to see packages that would land him (also from any player's details: *Find trades with …*, or `/trades?asset=player:<id>`). Two-team engine (objective, partner, position, age, package size and pick controls; untouchable / trade-block / target flags; two-sided breakdowns; builder; compare up to three; saved proposals re-checked against current rosters) and an exploratory **three-team** search. |
+| **Trade Hub** | Trade-deadline banner (deadline near, this week, or passed). **Build around a player:** pick one of yours to shop it to every team, or another team's player to see packages that would land him (also from any player's details: *Find trades with …*, or `/trades?asset=player:<id>`). Two-team engine (objective, partner, position, age and pick controls; packages of 1–3 pieces per side are found by value and fit, with no size to choose; untouchable / trade-block / target flags; two-sided breakdowns; builder; compare up to three; saved proposals re-checked against current rosters) and an exploratory **three-team** search. |
 | **Draft Picks** | Ownership matrix by team × season × round, traded-pick list, estimated values. |
 | **Analytics** | Weekly score vs. league median, age vs. asset value, lineup efficiency, positional heatmap, weekly scores, production left on benches, and a **model check** against past seasons. |
 | **History** | Champions and final standings for every season, manager trading profiles, trade ledger valued with hindsight (traded picks resolved to the players drafted with them), and a who-trades-with-whom matrix. |
@@ -250,14 +247,14 @@ With `VALUATION_PROVIDER=none` (or if FantasyCalc is unreachable), values come f
 
 ```
 src/
-  proxy.ts                Password gate (signed session cookie; cron routes use CRON_SECRET)
+  proxy.ts                Sends visitors without a league choice to /setup (cron routes use CRON_SECRET)
   app/                    (dashboard)/ pages with the app shell, login/, api/cron/{refresh,digest}, server actions
   components/             UI: shell, team, trades (incl. three-team), waivers, history, league, charts, primitives
   lib/
     config.ts             Zod-validated environment config
     store/                Key/value storage: local files, Neon Postgres (one gzip-compressed table), Upstash Redis
     cache/file-cache.ts   Read-through data cache over the store: TTLs, stale fallback, in-flight de-dupe
-    auth.ts               Session tokens (Web Crypto HMAC), password and cron checks
+    auth.ts               Cron secret check
     sim/                  Season Monte Carlo (seeded, common random numbers) and odds-for-trades
     digest/               Weekly digest builder, storage and delivery (Discord/Slack/ntfy)
     sleeper/              HTTP client (timeouts, retries, validation), schemas, endpoints

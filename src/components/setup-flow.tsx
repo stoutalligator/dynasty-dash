@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import { ArrowRight, Check, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { chooseLeagueAction, findLeaguesAction, lookupLeagueAction } from "@/app/setup/actions";
 import { Avatar } from "@/components/avatar";
@@ -47,6 +48,7 @@ export function SetupFlow({ currentLeagueId, savedUsername }: { currentLeagueId:
   const [rosterId, setRosterId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   const search = (name: string) =>
     start(async () => {
@@ -68,7 +70,8 @@ export function SetupFlow({ currentLeagueId, savedUsername }: { currentLeagueId:
     start(async () => {
       setError(null);
       const r = await chooseLeagueAction(input);
-      if (r && !r.ok) setError(r.error);
+      if (!r.ok) setError(r.error);
+      else router.push("/");
     });
 
   return (
@@ -227,6 +230,7 @@ export function SetupFlow({ currentLeagueId, savedUsername }: { currentLeagueId:
 
 export function RecentLeagues({ recent, currentLeagueId }: { recent: { leagueId: string; name: string; season: string; avatar?: string | null }[]; currentLeagueId: string | null }) {
   const [pending, start] = useTransition();
+  const router = useRouter();
   if (!recent.length) return null;
   return (
     <ul className="flex flex-wrap gap-2">
@@ -235,7 +239,12 @@ export function RecentLeagues({ recent, currentLeagueId }: { recent: { leagueId:
           <button
             type="button"
             disabled={pending || r.leagueId === currentLeagueId}
-            onClick={() => start(async () => void (await chooseLeagueAction({ leagueId: r.leagueId, userId: null, username: null, rosterId: null })))}
+            onClick={() =>
+              start(async () => {
+                const res = await chooseLeagueAction({ leagueId: r.leagueId, userId: null, username: null, rosterId: null });
+                if (res.ok) router.push("/");
+              })
+            }
             className={clsx("flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs", r.leagueId === currentLeagueId ? "border-accent/50 text-ink" : "border-line text-ink-2 hover:border-line-strong hover:text-ink")}
           >
             <Avatar src={r.avatar ?? null} name={r.name} size={18} />
