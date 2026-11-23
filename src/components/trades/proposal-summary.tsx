@@ -72,7 +72,9 @@ export function ProposalSummary({ e, compact }: { e: TradeEvaluation; compact?: 
         </div>
       </div>
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-3">
-        <span>Your lineup {delta(e.mine.lineupDelta)} PPG</span>
+        <span title={e.mine.lens === "rest-of-season" ? "Projected points per week for the rest of the season (injuries included)" : e.mine.lens === "blend" ? "Blend of current production and rest-of-season projection" : "Adjusted PPG this season"}>
+          Your lineup {delta(e.mine.lineupDelta)} {e.mine.lens === "rest-of-season" ? "pts/wk ROS" : "PPG"}
+        </span>
         <span>Value {deltaInt(e.mine.netValue)}</span>
         <span>Their lineup {delta(e.partner.lineupDelta)}</span>
         {!compact && <span>Their value {deltaInt(e.partner.netValue)}</span>}

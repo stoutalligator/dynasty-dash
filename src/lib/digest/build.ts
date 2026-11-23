@@ -71,7 +71,7 @@ export function buildDigest(model: LeagueModel, trades: TradeEvaluation[], previ
     title: "Your injury report",
     items: injured.map((p) => ({
       title: `${p.name} (${p.position}): ${p.injury!.status}${p.injury!.bodyPart ? `, ${p.injury!.bodyPart}` : ""}`,
-      detail: p.inBestLineup ? `In your best lineup (${fmtPts(p.lineupImpact)} adj. PPG at stake)` : undefined,
+      detail: p.inBestLineup ? `In your best lineup (${fmtPts(p.lineupImpact)} form PPG at stake)` : undefined,
       tag: previous && previous.injuries[p.id] !== p.injury!.status ? "new" : undefined,
     })),
     empty: "No injury designations on your active roster.",

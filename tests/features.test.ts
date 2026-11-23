@@ -155,3 +155,83 @@ describe("snapshots", () => {
     expect(rankMovement([snapshotOf(model)], model).size).toBe(0);
   });
 });
+
+describe("strategy-aware trade values", () => {
+  // Their TE1 is out for the season: no rest-of-season projection.
+  const hurt = {
+    ...model,
+    teams: model.teams.map((t) =>
+      t.team.rosterId !== 2
+        ? t
+        : { ...t, players: t.players.map((p) => (p.id === "b-te1" ? { ...p, injury: { status: "IR", bodyPart: "Knee", notes: null, practice: null }, rosPpg: 0, tags: [...p.tags, "Unavailable"] } : p)) },
+    ),
+  };
+  const asset = (rid: number, id: string) => teamAssets(hurt.teams.find((t) => t.team.rosterId === rid)!).find((a) => a.assetId === `player:${id}`)!;
+  const args = (objective: "contender" | "retool" | "rebuild") => ({ myRosterId: 1, partnerRosterId: 2, myGives: [asset(1, "a-rb2")], theirGives: [asset(2, "b-te1")], objective });
+
+  it("a contender gets no lineup help from a player out for the season", () => {
+    const e = evaluateTrade(hurt, args("contender"));
+    expect(e.mine.lens).toBe("rest-of-season");
+    expect(e.mine.lineupDelta).toBeLessThanOrEqual(0);
+    expect(e.mine.reasonsAgainst.join(" ")).toMatch(/ruled out/);
+  });
+
+  it("a rebuilder treats the injury as a possible buy-low", () => {
+    const e = evaluateTrade(hurt, args("rebuild"));
+    expect(e.mine.lens).toBe("production");
+    expect(e.mine.reasonsFor.join(" ")).toMatch(/buy-low/);
+  });
+
+  it("scores the same trade lower for a contender than before the injury", () => {
+    const healthy = evaluateTrade(model, { ...args("contender"), myGives: [teamAssets(model.teams.find((t) => t.team.rosterId === 1)!).find((a) => a.assetId === "player:a-rb2")!], theirGives: [teamAssets(model.teams.find((t) => t.team.rosterId === 2)!).find((a) => a.assetId === "player:b-te1")!] });
+    expect(evaluateTrade(hurt, args("contender")).mine.score).toBeLessThan(healthy.mine.score);
+  });
+});
+
+describe("form PPG", () => {
+  it("weights recent games more but keeps a season prior", async () => {
+    const { formPpg } = await import("@/lib/analysis/production");
+    const rising = formPpg([5, 5, 5, 5, 20, 20, 20], 11.4);
+    expect(rising).toBeGreaterThan(11.4);
+    expect(rising).toBeLessThan(20);
+    expect(formPpg([10, 10, 10], 10)).toBeCloseTo(10, 5);
+    // One huge game can't dominate a small sample.
+    expect(formPpg([40], 20)).toBeLessThan(31);
+    expect(formPpg([], 0)).toBe(0);
+  });
+});
+
+describe("trend detection", () => {
+  const prod = (games: [number, number | null, number | null][]) =>
+    ({ weekly: games.map(([points, snapShare, opportunities], i) => ({ week: i + 1, points, snapShare, opportunities, played: true, started: null, rosterId: null })) }) as never;
+  it("calls a role change only when usage moves with production", async () => {
+    const { detectTrend } = await import("@/lib/analysis/trends");
+    expect(detectTrend(prod([[4, 0.4, 5], [5, 0.4, 5], [4, 0.45, 6], [18, 0.7, 14], [20, 0.72, 15], [19, 0.75, 15]]))?.kind).toBe("rising-role");
+    expect(detectTrend(prod([[4, 0.6, 8], [5, 0.6, 8], [4, 0.6, 8], [18, 0.6, 8], [20, 0.6, 8], [19, 0.6, 8]]))?.kind).toBe("hot-streak");
+    expect(detectTrend(prod([[18, 0.8, 15], [17, 0.8, 15], [19, 0.8, 14], [6, 0.6, 7], [5, 0.55, 6], [7, 0.6, 7]]))?.kind).toBe("shrinking-role");
+    // Mixed signals (snaps down, touches up) are not a role change.
+    expect(detectTrend(prod([[4, 0.8, 5], [5, 0.8, 5], [4, 0.8, 6], [18, 0.6, 14], [20, 0.6, 15], [19, 0.6, 15]]))?.kind).toBe("hot-streak");
+    expect(detectTrend(prod([[10, 0.6, 8], [10, 0.6, 8], [11, 0.6, 8], [10, 0.6, 8]]))).toBeNull();
+  });
+});
+
+describe("per-team spread", () => {
+  it("shrinks a team's own spread toward the league's", async () => {
+    const { teamWeeklySds } = await import("@/lib/sim/context");
+    const wk = (week: number, a: number, b: number) => ({ week, complete: true, entries: [{ rosterId: 1, matchupId: 1, points: a, starters: [], startersPoints: [], playersPoints: {} }, { rosterId: 2, matchupId: 1, points: b, starters: [], startersPoints: [], playersPoints: {} }] });
+    const sds = teamWeeklySds([wk(1, 100, 60), wk(2, 101, 160), wk(3, 99, 80), wk(4, 100, 150)], 25);
+    expect(sds.get(1)!).toBeLessThan(25);
+    expect(sds.get(2)!).toBeGreaterThan(25);
+    expect(sds.get(2)!).toBeLessThan(48); // raw spread ~48, pulled toward 25
+  });
+});
+
+describe("live week in the simulation", () => {
+  it("treats a fully played week as final (no spread)", () => {
+    const team = (rosterId: number, mean: number) => ({ rosterId, division: null, wins: 5, losses: 5, ties: 0, pointsFor: 1000, weekMeans: new Map([[12, mean], [15, 100]]), weekSd: new Map([[12, 0]]) });
+    const input: SimInput = { teams: [team(1, 120), team(2, 100)], schedule: [{ week: 12, pairs: [[1, 2]] }], playoffWeeks: [15], playoffTeams: 1, medianGame: false, divisionWinnersSeedFirst: false, weeksPerRound: 1, sd: 25 };
+    const odds = simulateSeason(input, 500);
+    expect(odds.find((o) => o.rosterId === 1)!.avgWins).toBe(6);
+    expect(odds.find((o) => o.rosterId === 1)!.playoffPct).toBe(1);
+  });
+});

@@ -79,6 +79,26 @@ export function pooledWeeklySd(seasons: WeekResult[][]): number | null {
 }
 
 /**
+ * Each team's own week-to-week spread this season, shrunk toward the league spread with the weight
+ * of six weeks, so a team with few games (or one wild week) isn't given an extreme spread.
+ */
+export function teamWeeklySds(weeks: WeekResult[], leagueSd: number, priorWeeks = 6): Map<number, number> {
+  const byTeam = new Map<number, number[]>();
+  for (const w of weeks) {
+    if (!w.complete) continue;
+    for (const e of w.entries) if (e.points > 0) byTeam.set(e.rosterId, [...(byTeam.get(e.rosterId) ?? []), e.points]);
+  }
+  const out = new Map<number, number>();
+  for (const [rid, xs] of byTeam) {
+    const n = xs.length;
+    const m = xs.reduce((a, b) => a + b, 0) / Math.max(1, n);
+    const ss = xs.reduce((a, x) => a + (x - m) ** 2, 0);
+    out.set(rid, Math.sqrt((ss + priorWeeks * leagueSd ** 2) / (Math.max(0, n - 1) + priorWeeks)));
+  }
+  return out;
+}
+
+/**
  * Build the simulation for a league model and run the baseline. Returns null when there is no
  * schedule or projections to simulate (e.g. offseason).
  */
@@ -118,6 +138,32 @@ export function buildSeasonSim(opts: {
   }
   const calibration = projSum > 0 ? Math.min(1.3, Math.max(0.8, actSum / projSum)) : 1;
   const sd = pooledWeeklySd([opts.completedWeeks, ...opts.historicalWeeks]) ?? 25;
+  const teamSds = teamWeeklySds(opts.completedWeeks, sd);
+
+  // In-progress week: starters who've played count their actual points; the rest their projection.
+  // Only the unplayed share of each lineup is still uncertain (so Monday-night starters keep it open).
+  const live = model.liveWeek;
+  const liveWeek = live && live.week === currentWeek && regularWeeks.includes(currentWeek) ? live : null;
+  const liveMeans = new Map<number, { mean: number; sd: number }>();
+  if (liveWeek) {
+    const played = new Set(liveWeek.played);
+    const proj = opts.projections.get(currentWeek);
+    for (const e of liveWeek.entries) {
+      const starters = e.starters.map((id, i) => ({ id, pts: e.startersPoints[i] ?? 0 })).filter((s) => s.id && s.id !== "0");
+      if (!starters.length) continue;
+      let mean = 0;
+      let open = 0;
+      for (const s of starters) {
+        if (played.has(s.id) || s.pts !== 0) mean += s.pts;
+        else {
+          open++;
+          const lite = liteById.get(s.id);
+          mean += lite?.unavailable ? 0 : (proj?.get(s.id)?.pts ?? 0) * calibration;
+        }
+      }
+      liveMeans.set(e.rosterId, { mean, sd: (teamSds.get(e.rosterId) ?? sd) * Math.sqrt(open / starters.length) });
+    }
+  }
 
   const ctx: SimContext = {
     ...base,
@@ -131,6 +177,7 @@ export function buildSeasonSim(opts: {
   };
   const simTeam = (rosterId: number, players: PlayerLite[]): SimTeam => {
     const t = model.teams.find((x) => x.team.rosterId === rosterId)!.team;
+    const lv = liveMeans.get(rosterId);
     return {
       rosterId,
       division: t.division,
@@ -138,7 +185,10 @@ export function buildSeasonSim(opts: {
       losses: t.losses,
       ties: t.ties,
       pointsFor: t.pointsFor,
-      weekMeans: new Map([...regularWeeks, ...playoffWeeks].map((w) => [w, weekMean(players, w, ctx)])),
+      // A live week's score is already partly in the books; trades can't change it.
+      weekMeans: new Map([...regularWeeks, ...playoffWeeks].map((w) => [w, lv && w === currentWeek ? lv.mean : weekMean(players, w, ctx)])),
+      sd: teamSds.get(rosterId) ?? sd,
+      ...(lv ? { weekSd: new Map([[currentWeek, lv.sd]]) } : {}),
     };
   };
   ctx.input.teams = model.teams.map((t) => simTeam(t.team.rosterId, playersByRoster.get(t.team.rosterId)!));
@@ -146,7 +196,6 @@ export function buildSeasonSim(opts: {
 
   // Stakes are for my next undecided game: once every starter in this week's game has played, next week.
   let focusWeek = opts.schedule[0]?.week;
-  const live = model.liveWeek;
   if (live && model.myRosterId != null && live.week === focusWeek) {
     const pair = opts.schedule[0].pairs.find((p) => p.includes(model.myRosterId!));
     const done = pair?.every((rid) => {
@@ -170,12 +219,14 @@ export function buildSeasonSim(opts: {
       return { ...o, projectedPpg: Math.round((weeksAll.reduce((a, w) => a + (means.get(w) ?? 0), 0) / Math.max(1, weeksAll.length)) * 10) / 10 };
     }),
     assumptions: [
-      `${opts.runs.toLocaleString()} simulated seasons; weekly team scores ~ Normal(projected best lineup, ${Math.round(sd)} pts), the spread measured from ${opts.historicalWeeks.length + 1} seasons of this league's weekly scores.`,
+      `${opts.runs.toLocaleString()} simulated seasons; weekly team scores ~ Normal(projected best lineup, each team's own spread). Spreads are measured from each team's weekly scores this season, pulled toward the league-wide ${Math.round(sd)} pts (from ${opts.historicalWeeks.length + 1} seasons) so a few weeks don't overstate it; teams range ${Math.round(Math.min(...teamSds.values()))}–${Math.round(Math.max(...teamSds.values()))} pts.`,
       `Projections are Sleeper's, scaled by ${calibration.toFixed(2)} to match this league's actual scoring so far.`,
       lg.medianGame ? "Each week also counts as a game against the league median." : "Head-to-head games only.",
       lg.divisions.length ? "Division winners are assumed to qualify and take the top seeds, then best records (wins, then points for)." : "Seeds by record, then points for.",
       "Playoff rounds pair the highest remaining seed with the lowest; Sleeper's exact bracket and tiebreakers may differ.",
-      `The in-progress week ${currentWeek} is simulated in full; rosters are assumed fixed (no future trades or pickups).`,
+      liveWeek
+        ? `Week ${currentWeek} is in progress: starters who have played count their actual points, the rest their projection (lineups as set in Sleeper); only unplayed starters add uncertainty. Rosters are assumed fixed (no future trades or pickups).`
+        : `Week ${currentWeek} is simulated in full from projections; rosters are assumed fixed (no future trades or pickups).`,
     ],
   };
 }

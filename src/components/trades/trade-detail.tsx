@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { CircleAlert, CircleCheck, CircleMinus } from "lucide-react";
+import { LENS_UNIT } from "@/lib/trades/evaluate";
 import type { SideImpact, TradeEvaluation } from "@/lib/trades/evaluate";
 import { fmtAge, fmtInt, fmtPts, fmtSigned, fmtSignedInt } from "@/lib/format";
 import type { OddsDelta } from "@/lib/sim/context";
@@ -29,7 +30,7 @@ function Side({ s, title, odds }: { s: SideImpact; title: string; odds?: OddsDel
         <dt className="text-ink-3">Value (pkg-adj.)</dt>
         <dd className="text-right"><span className="text-ink-2">{fmtInt(s.valueOut)} → {fmtInt(s.valueIn)}</span> <span className={tone(s.netValue)}>{fmtSignedInt(s.netValue)}</span></dd>
         <dt className="text-ink-3">Best lineup</dt>
-        <dd className="text-right"><span className="text-ink-2">{fmtPts(s.lineupBefore)} → {fmtPts(s.lineupAfter)}</span> <span className={tone(s.lineupDelta)}>{fmtSigned(s.lineupDelta)}</span></dd>
+        <dd className="text-right" title={LENS_UNIT[s.lens]}><span className="text-ink-2">{fmtPts(s.lineupBefore)} → {fmtPts(s.lineupAfter)}</span> <span className={tone(s.lineupDelta)}>{fmtSigned(s.lineupDelta)}</span></dd>
         {s.positionDeltas.map((d) => (
           <div key={d.position} className="contents">
             <dt className="pl-2 text-ink-3">{d.position} starters</dt>

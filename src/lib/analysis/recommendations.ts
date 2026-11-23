@@ -66,7 +66,7 @@ export function recommendationsFor(
   const sellHighLine: Recommendation[] = sellHigh.length
     ? [{
         title: `Sell into the spike: ${sellHigh[0].name}`,
-        detail: `Value ${trend(sellHigh[0])} in 30 days (now ${(sellHigh[0].value ?? 0).toLocaleString("en-US")}) with ${sellHigh[0].lineupImpact > 0 ? `only ${sellHigh[0].lineupImpact.toFixed(1)} adj. PPG of lineup impact` : "no impact on your best lineup"}.${sellHigh.length > 1 ? ` Also rising: ${sellHigh.slice(1, 3).map((p) => `${p.name} (${trend(p)})`).join(", ")}.` : ""}`,
+        detail: `Value ${trend(sellHigh[0])} in 30 days (now ${(sellHigh[0].value ?? 0).toLocaleString("en-US")}) with ${sellHigh[0].lineupImpact > 0 ? `only ${sellHigh[0].lineupImpact.toFixed(1)} form PPG of lineup impact` : "no impact on your best lineup"}.${sellHigh.length > 1 ? ` Also rising: ${sellHigh.slice(1, 3).map((p) => `${p.name} (${trend(p)})`).join(", ")}.` : ""}`,
         kind: "sell",
         action: { label: `Shop ${sellHigh[0].name.split(" ").slice(-1)[0]}`, href: tradeHub(sellHigh[0]) },
       }]
@@ -91,7 +91,7 @@ export function recommendationsFor(
   const tradeLine = (o: Strategy): Recommendation[] =>
     (tradesByObjective[o] ?? []).slice(0, 2).map((e) => ({
       title: `Explore with ${e.partner.teamName}`,
-      detail: `Give ${e.mine.gives.map((a) => a.label).join(" + ")} for ${e.mine.gets.map((a) => a.label).join(" + ")} — lineup ${e.mine.lineupDelta >= 0 ? "+" : ""}${e.mine.lineupDelta.toFixed(1)} adj. PPG, value ${e.mine.netValue >= 0 ? "+" : ""}${e.mine.netValue.toLocaleString()}. ${e.partnerOutlook} (their ${e.partner.strategy} incentives).`,
+      detail: `Give ${e.mine.gives.map((a) => a.label).join(" + ")} for ${e.mine.gets.map((a) => a.label).join(" + ")} — lineup ${e.mine.lineupDelta >= 0 ? "+" : ""}${e.mine.lineupDelta.toFixed(1)} ${e.mine.lens === "rest-of-season" ? "projected pts/wk" : "PPG"}, value ${e.mine.netValue >= 0 ? "+" : ""}${e.mine.netValue.toLocaleString()}. ${e.partnerOutlook} (their ${e.partner.strategy} incentives).`,
       kind: "target",
     }));
 
@@ -104,7 +104,7 @@ export function recommendationsFor(
     ...qbNote,
     ...needLines.filter((l) => !(qbNote.length && l.title.endsWith("QB"))),
     ...(worstSlot && worstSlot.gap < 0
-      ? [{ title: `Weakest lineup slot: ${worstSlot.slot}`, detail: `Scores ${worstSlot.score.toFixed(1)} adj. PPG vs. a league median of ${worstSlot.leagueMed.toFixed(1)} for that slot.`, kind: "upgrade" as const }]
+      ? [{ title: `Weakest lineup slot: ${worstSlot.slot}`, detail: `Scores ${worstSlot.score.toFixed(1)} form PPG vs. a league median of ${worstSlot.leagueMed.toFixed(1)} for that slot.`, kind: "upgrade" as const }]
       : []),
     ...buyLowLine,
     ...(expendable.length ? [{ title: "Use bench value as currency", detail: `Not in your best lineup but carry trade value: ${names(expendable.slice(0, 4))}.`, kind: "sell" as const }] : []),

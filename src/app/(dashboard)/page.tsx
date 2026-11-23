@@ -12,6 +12,7 @@ import { ProposalSummary } from "@/components/trades/proposal-summary";
 import { ValueMoversCard } from "@/components/team/value-movers";
 import { ThisWeekCard } from "@/components/week/this-week-card";
 import { SeasonTrendCard } from "@/components/team/season-trend";
+import { TrendsCard } from "@/components/team/trends-card";
 import { rankMovement, readSnapshots } from "@/lib/snapshots/store";
 import { Card, CardHeader, InjuryBadge, Notice, PosBadge, Skeleton } from "@/components/ui";
 import { setImmediate as yieldToStream } from "node:timers/promises";
@@ -65,6 +66,7 @@ async function Dashboard() {
         <div className="space-y-5">
           <StrategyCard t={t} />
           <PositionGradesCard t={t} model={model} />
+          <TrendsCard model={model} t={t} />
           <ValueMoversCard t={t} model={model} />
           <SeasonTrendCard snaps={snaps} rosterId={t.team.rosterId} />
           <Card>

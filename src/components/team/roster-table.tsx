@@ -28,9 +28,13 @@ const TAG_CLASS: Record<string, string> = {
   "Low sample": "text-ink-3 ring-line",
   Unavailable: "text-critical ring-critical/30",
   "Free agent": "text-good ring-good/30",
+  "Rising role": "text-good ring-good/30",
+  "Hot streak": "text-brand-amber ring-brand-amber/30",
+  "Shrinking role": "text-critical ring-critical/30",
+  "Cold streak": "text-ink-2 ring-line-strong",
 };
 
-const TAG_PRIORITY = ["Unavailable", "Core", "Age risk", "Expendable", "Taxi stash", "Free agent", "Low sample", "Starter"];
+const TAG_PRIORITY = ["Unavailable", "Core", "Rising role", "Shrinking role", "Age risk", "Hot streak", "Cold streak", "Expendable", "Taxi stash", "Free agent", "Low sample", "Starter"];
 
 /** At most `max` tags, most important first; the full list is in the title. */
 export function TagList({ tags, max = 2 }: { tags: string[]; max?: number }) {

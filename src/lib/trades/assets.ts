@@ -1,3 +1,5 @@
+import { isUnavailable } from "@/lib/players/normalize";
+import type { PlayerInfo } from "@/lib/league/models";
 import type { LeagueModel, PickView, PlayerView, TeamAnalysis } from "@/lib/analysis/types";
 
 export type TradeAsset = {
@@ -10,6 +12,12 @@ export type TradeAsset = {
   position: string | null;
   age: number | null;
   adjPpg: number | null;
+  /** Recency-weighted PPG (what lineup impact uses). */
+  formPpg: number | null;
+  /** Projected points per remaining week (null = unprojected). */
+  rosPpg: number | null;
+  /** Listed Out/IR/PUP etc. by Sleeper. */
+  unavailable: boolean;
   /** Taxi/reserve players cannot be started; they still count as assets. */
   slot: string | null;
   /** Past the position's typical decline age. */
@@ -27,6 +35,9 @@ export function playerAsset(p: PlayerView): TradeAsset {
     position: p.position,
     age: p.age,
     adjPpg: p.prod?.adjPpg ?? null,
+    formPpg: p.prod?.formPpg ?? null,
+    rosPpg: p.rosPpg,
+    unavailable: !!p.injury && isUnavailable({ injury: p.injury } as PlayerInfo),
     slot: p.slot,
     ageRisk: p.ageRisk,
   };
@@ -43,6 +54,9 @@ export function pickAsset(p: PickView): TradeAsset {
     position: null,
     age: null,
     adjPpg: null,
+    formPpg: null,
+    rosPpg: null,
+    unavailable: false,
     slot: null,
     ageRisk: false,
   };

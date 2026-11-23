@@ -162,10 +162,12 @@ Every number is either actual data (Sleeper), third-party data (labeled with its
 
 - **Production.** Each player's raw weekly NFL stats are scored with the league's settings (completed weeks only).
   - Games come from games played, so byes and injuries don't drag averages down.
-  - *Adjusted PPG* divides by at least 2 games so tiny samples don't dominate.
+  - *Adjusted PPG* divides by at least 2 games so tiny samples don't dominate. It's the season average shown in tables.
+  - *Form PPG* weights recent games more: a game's weight halves every 3 games back, plus one game's worth of the season average as a prior so one big week can't dominate. Lineups, grades, replacement level, waiver fit and trade impact use form PPG.
+  - **Trends** compare the last 3 games with earlier ones (5+ games). A *rising* or *shrinking role* needs production to move 3+ PPG (and 25%+) **and** usage to move the same way (snap share ±10 pts or targets+carries ±25%, without the other measure moving against it). Production moving without usage is a *hot* or *cold streak*, which is less likely to last.
   - Snap share, targets plus carries per game, and their recent trend come from the same stats.
   - Started/benched usage comes from league matchups.
-- **Best lineup.** Fills the league's real starting slots from starters and bench (taxi and IR can't start), most restrictive slot first. *Lineup impact* is the adjusted PPG lost without a player. The **projected lineup** does the same with Sleeper's projections for this week, excluding players listed Out or IR.
+- **Best lineup.** Fills the league's real starting slots from starters and bench (taxi and IR can't start), most restrictive slot first. *Lineup impact* is the form PPG lost without a player. The **projected lineup** does the same with Sleeper's projections for this week, excluding players listed Out or IR.
 - **Positional grades.** 60% production rank of a team's top-N at the position, where N is how many that position the league's best lineups actually start (2 QBs here because of superflex), plus 40% dynasty-value rank.
 - **Strategy (Contender / Retool / Rebuilder).**
   - *Current strength:* best-lineup PPG 35%, points for 30%, win % 25%, potential points 10%. At 62 or above a team is a contender; at 38 or below it is rebuilding. These weights were calibrated with the model check (below).
@@ -196,10 +198,11 @@ Every number is either actual data (Sleeper), third-party data (labeled with its
 
 1. **Candidates.** Packages of 1–3 assets per side whose depth-discounted values are within ±25% of each other (each extra asset counts ×0.85 of the previous).
 2. **Strategy lens.** Each side is scored through its own strategy. Rebuilders weight picks and players 25 or younger ×1.15 and aging veterans ×0.75; contenders weight picks ×0.85.
-3. **Other inputs.** Lineup change, needs addressed, and the *value of the players a team would have to cut* to stay within its roster limit.
-4. **Ranking.** Rewards mutual benefit, penalizes deals the partner has little reason to consider, and gives a small boost to managers who trade often (from league history). No single outgoing asset leads more than three proposals.
-5. **Three-team (exploratory).** One-for-one-for-one cycles (you → B, B → C, C → you), only where B and C plausibly want what they receive (a need, or a fit with their window) and all three sides score acceptably.
-6. **Limits.** It never claims a trade will be accepted.
+3. **Lineup change, by strategy.** *Contenders* measure lineup change with Sleeper's **rest-of-season projections** (points per remaining week, playoffs included), which are ~0 while a player is out, so an injured player adds little to a title run and his market value counts ×0.85. *Retoolers* use half rest-of-season projection, half form PPG (injured ×0.95). *Rebuilders* don't weigh lineups; an injured player is flagged as a possible buy-low.
+4. **Other inputs.** Needs addressed, and the *value of the players a team would have to cut* to stay within its roster limit.
+5. **Ranking.** Rewards mutual benefit, penalizes deals the partner has little reason to consider, and gives a small boost to managers who trade often (from league history). No single outgoing asset leads more than three proposals.
+6. **Three-team (exploratory).** One-for-one-for-one cycles (you → B, B → C, C → you), only where B and C plausibly want what they receive (a need, or a fit with their window) and all three sides score acceptably.
+7. **Limits.** It never claims a trade will be accepted.
 
 ### History
 
@@ -212,7 +215,8 @@ Every number is either actual data (Sleeper), third-party data (labeled with its
 
 - **Weekly team scores.** Each team's expected score is its best lineup by Sleeper's projections for that week. For the current week, players listed Out/IR are excluded.
 - **Calibration.** Projections are scaled to this league's actual scoring so far (projected vs. actual lineups in completed weeks; currently ×1.03).
-- **Variance.** Weekly scores are drawn from a normal distribution whose spread is the within-team standard deviation of every weekly score in this league's history (currently about 25 points).
+- **Variance.** Weekly scores are drawn from a normal distribution with **each team's own spread**: its weekly scores this season, pulled toward the league-wide within-team spread (about 25 points over three seasons) with the weight of six weeks.
+- **The week in progress.** Starters who have played count their actual points; the rest count their projection, using the lineups set in Sleeper. Only unplayed starters (e.g. Monday night) add uncertainty, so odds firm up as games finish.
 - **Schedule.** The real remaining pairings come from Sleeper, plus the league-median game when enabled.
 - **Seeding.** Division winners take the top seeds, then the best records (wins, then points for).
 - **Playoffs.** Byes go to the top seeds, and each round pairs the highest remaining seed with the lowest.

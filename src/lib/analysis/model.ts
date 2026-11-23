@@ -10,6 +10,7 @@ import { gradedPositions, lineupImpacts, optimalLineup, type LineupCandidate } f
 import { analyzeHistory } from "@/lib/history/analyze";
 import { headToHead } from "@/lib/history/h2h";
 import { faabMarket } from "./faab";
+import { detectTrend, TREND_LABEL } from "./trends";
 import type { LeagueHistory } from "@/lib/history/load";
 import type { StatsBundle } from "@/lib/stats/load";
 import { computeProduction, computeProductionFromStats, round, teamWeeklyScores, type PlayerProduction } from "./production";
@@ -31,6 +32,7 @@ function summarize(p: PlayerProduction | undefined): ProductionSummary | null {
     total: p.total,
     ppg: p.ppg,
     adjPpg: p.adjPpg,
+    formPpg: p.formPpg,
     last3Ppg: p.last3Ppg,
     snapShare: p.snapShare,
     snapShareLast3: p.snapShareLast3,
@@ -47,7 +49,7 @@ function summarize(p: PlayerProduction | undefined): ProductionSummary | null {
 
 function candidate(p: PlayerInfo, prod: Map<string, PlayerProduction>): LineupCandidate {
   const positions = p.fantasyPositions.length ? p.fantasyPositions : p.position ? [p.position] : [];
-  return { id: p.id, positions, score: prod.get(p.id)?.adjPpg ?? 0 };
+  return { id: p.id, positions, score: prod.get(p.id)?.formPpg ?? 0 };
 }
 
 export type BuildModelInput = {
@@ -88,6 +90,15 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
   const byes = stats ? inferByeWeeks(stats.projections, (id) => s.players[id]?.nflTeam ?? null) : new Map<string, number>();
   const byeOf = (nflTeam: string | null) => (nflTeam ? (byes.get(nflTeam) ?? null) : null);
   const projRosFor = (id: string) => projSum(id, projectionWeeks);
+  /**
+   * Per-week rest-of-season rate. Sleeper projects injured players at ~0 for the weeks they miss,
+   * so a season-ending injury rates near 0 and a short absence only costs those weeks.
+   */
+  const rosPpgFor = (id: string) => {
+    if (!projectionWeeks.length) return null;
+    const total = projRosFor(id);
+    return total == null ? null : round(total / projectionWeeks.length, 2);
+  };
   const scoredWeeks = s.weeks.filter((w) => w.complete).length;
 
   // Lineup-eligible pool excludes taxi and reserve (they cannot be started in Sleeper).
@@ -113,7 +124,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
   const rostered = s.teams.flatMap((t) => t.roster.map((r) => r.player));
   const replacementPpg = Object.fromEntries(
     POSITIONS.map((pos) => {
-      const scores = rostered.filter((p) => p.position === pos).map((p) => production.get(p.id)?.adjPpg ?? 0).sort((a, b) => b - a);
+      const scores = rostered.filter((p) => p.position === pos).map((p) => production.get(p.id)?.formPpg ?? 0).sort((a, b) => b - a);
       return [pos, round(scores[startersPerPosition[pos] * n] ?? 0)];
     }),
   ) as Record<SkillPosition, number>;
@@ -170,11 +181,13 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
         projWeek: projFor(r.player.id),
         projNext: projNextFor(r.player.id),
         projRos: projRosFor(r.player.id),
+        rosPpg: rosPpgFor(r.player.id),
+        trend: detectTrend(production.get(r.player.id)),
         trendingAdds: trending?.adds.get(r.player.id) ?? null,
       };
     });
     const byPos = (pos: SkillPosition) =>
-      players.filter((p) => p.position === pos).sort((a, b) => (b.prod?.adjPpg ?? 0) - (a.prod?.adjPpg ?? 0));
+      players.filter((p) => p.position === pos).sort((a, b) => (b.prod?.formPpg ?? 0) - (a.prod?.formPpg ?? 0));
     const posMetrics = Object.fromEntries(
       POSITIONS.map((pos) => {
         const list = byPos(pos);
@@ -183,8 +196,8 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
         return [
           pos,
           {
-            starterPpg: round(active.slice(0, k).reduce((a, p) => a + (p.prod?.adjPpg ?? 0), 0)),
-            depthPpg: round(active.slice(k, k + (DEPTH_COUNT[pos] ?? 0)).reduce((a, p) => a + (p.prod?.adjPpg ?? 0), 0)),
+            starterPpg: round(active.slice(0, k).reduce((a, p) => a + (p.prod?.formPpg ?? 0), 0)),
+            depthPpg: round(active.slice(k, k + (DEPTH_COUNT[pos] ?? 0)).reduce((a, p) => a + (p.prod?.formPpg ?? 0), 0)),
             value: list.reduce((a, p) => a + (p.value ?? 0), 0),
             playerIds: list.map((p) => p.id),
           },
@@ -316,7 +329,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
     const seasons = s.pickSeasons.length;
 
     const reasons = [
-      `Best lineup averages ${b.lu.total.toFixed(1)} adj. PPG (${ordinal(lineupRanks[i])} of ${n}).`,
+      `Best lineup averages ${b.lu.total.toFixed(1)} form PPG (${ordinal(lineupRanks[i])} of ${n}).`,
       `Record ${b.t.wins}-${b.t.losses}${b.t.ties ? `-${b.t.ties}` : ""} (${ordinal(winRanks[i])}); ${b.t.pointsFor.toFixed(1)} points for (${ordinal(pfRanks[i])})${potRanks ? `; ${b.t.potentialPoints!.toFixed(1)} potential (${ordinal(potRanks[i])})` : ""}.`,
       b.valueWeightedAge != null
         ? `Value-weighted roster age ${b.valueWeightedAge} (${ordinal(youthRanks[i])} youngest); ${Math.round(b.ageRiskValueShare * 100)}% of player value is past typical decline age.`
@@ -336,6 +349,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
       if (p.ageRisk) p.tags.push("Age risk");
       if (p.injury && isUnavailable({ injury: p.injury } as PlayerInfo)) p.tags.push("Unavailable");
       if (p.slot !== "taxi" && (p.prod?.activeWeeks ?? 0) < 2 && scoredWeeks >= 2) p.tags.push("Low sample");
+      if (p.trend) p.tags.push(TREND_LABEL[p.trend.kind]);
     }
 
     const needs: Need[] = POSITIONS.flatMap((pos) => {
@@ -345,7 +359,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
       return [{
         position: pos,
         severity: round((g.starterRank - Math.ceil(n * 2 / 3) + 1) / (n - Math.ceil(n * 2 / 3) + 1), 2),
-        reason: `${pos} starters produce ${g.starterPpg.toFixed(1)} adj. PPG vs league median ${leagueMed.toFixed(1)} (${ordinal(g.starterRank)} of ${n}).`,
+        reason: `${pos} starters produce ${g.starterPpg.toFixed(1)} form PPG vs league median ${leagueMed.toFixed(1)} (${ordinal(g.starterRank)} of ${n}).`,
       }];
     }).sort((a, b2) => b2.severity - a.severity);
 
@@ -411,12 +425,13 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
     const v = valueSource === "third-party" ? valuation.players[id] : undefined;
     // Players without an NFL team are only kept when a valuation source still values them.
     if (!p.nflTeam && !v) continue;
+    const faTrend = detectTrend(production.get(id));
     freeAgents.push({
       id, assetId: `player:${id}`, name: p.name, position: p.position, nflTeam: p.nflTeam, age: p.age, yearsExp: p.yearsExp,
       injury: p.injury, mapped: true, rosterId: null, slot: null, starterSlot: null, prod: summarize(production.get(id)),
       value: v?.value ?? null, redraftValue: v?.redraftValue ?? null, positionRank: v?.positionRank ?? null, valueTrend30: v?.trend30Day ?? null, byeWeek: byeOf(p.nflTeam), onBye: projWeek != null && byeOf(p.nflTeam) === projWeek, valueSource, lineupImpact: 0,
-      inBestLineup: false, ageRisk: p.age != null && p.age >= (AGE_RISK[p.position ?? ""] ?? 99), tags: ["Free agent"],
-      projWeek: projFor(id), projNext: projNextFor(id), projRos: projRosFor(id), trendingAdds: trending?.adds.get(id) ?? null,
+      inBestLineup: false, ageRisk: p.age != null && p.age >= (AGE_RISK[p.position ?? ""] ?? 99), tags: ["Free agent", ...(faTrend ? [TREND_LABEL[faTrend.kind]] : [])],
+      projWeek: projFor(id), projNext: projNextFor(id), projRos: projRosFor(id), rosPpg: rosPpgFor(id), trend: faTrend, trendingAdds: trending?.adds.get(id) ?? null,
     });
   }
   freeAgents.sort((a, b) => (b.value ?? 0) - (a.value ?? 0) || (b.prod?.ppg ?? 0) - (a.prod?.ppg ?? 0));

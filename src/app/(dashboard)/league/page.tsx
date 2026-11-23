@@ -28,7 +28,7 @@ function PowerRankings({ model }: { model: LeagueModel }) {
       <CardHeader
         title="Power rankings"
         subtitle="Current strength, not record alone"
-        info="Power rank sorts by the current-strength score: best-lineup adj. PPG (35%), points for (30%), win % (25%), potential points (10%), each as a league percentile."
+        info="Power rank sorts by the current-strength score: best-lineup form PPG (35%), points for (30%), win % (25%), potential points (10%), each as a league percentile."
       />
       <div className="overflow-x-auto">
         <table className="tnum w-full text-sm md:min-w-[820px]">

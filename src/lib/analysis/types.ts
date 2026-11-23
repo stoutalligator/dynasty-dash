@@ -1,3 +1,4 @@
+import type { PlayerTrend } from "./trends";
 import type { FaabMarket } from "./faab";
 import type { H2HRecord } from "@/lib/history/h2h";
 import type { ScheduledWeek } from "@/lib/league/models";
@@ -29,6 +30,8 @@ export type ProductionSummary = {
   total: number;
   ppg: number;
   adjPpg: number;
+  /** Recency-weighted PPG (drives lineups, grades and trade impact). */
+  formPpg: number;
   last3Ppg: number | null;
   /** Offensive snap share 0–1 (NFL stats). */
   snapShare: number | null;
@@ -82,6 +85,10 @@ export type PlayerView = {
   projNext: number | null;
   /** Rest-of-season projection (current week through the championship week). */
   projRos: number | null;
+  /** A clear change in role or production over the last three games (null when none). */
+  trend: PlayerTrend | null;
+  /** Projected points per remaining week (rest of season incl. playoffs); null when unprojected. */
+  rosPpg: number | null;
   /** Sleeper-wide adds in the last 48 hours. */
   trendingAdds: number | null;
 };

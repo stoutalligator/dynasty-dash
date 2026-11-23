@@ -16,6 +16,10 @@ export type SimTeam = {
   pointsFor: number;
   /** Expected score by week (regular season and playoff weeks). */
   weekMeans: Map<number, number>;
+  /** This team's own week-to-week spread (defaults to the league's `sd`). */
+  sd?: number;
+  /** Spread for specific weeks, e.g. the in-progress week where only unplayed starters are uncertain. */
+  weekSd?: Map<number, number>;
 };
 
 export type SimInput = {
@@ -97,6 +101,8 @@ export function simulateSeason(input: SimInput, runs: number, seed = 20_261_018,
   };
   // Precomputed per-week means and pair indices: the loop below runs runs × weeks × teams times.
   const regMeans = input.schedule.map((wk) => Float64Array.from({ length: n }, (_, i) => meanFor(i, wk.week)));
+  const teamSd = Float64Array.from(input.teams, (t) => t.sd ?? input.sd);
+  const regSd = input.schedule.map((wk) => Float64Array.from(input.teams, (t, i) => t.weekSd?.get(wk.week) ?? teamSd[i]));
   const regPairs = input.schedule.map((wk) =>
     wk.pairs.flatMap(([a, b]) => {
       const ia = idxByRoster.get(a);
@@ -128,8 +134,9 @@ export function simulateSeason(input: SimInput, runs: number, seed = 20_261_018,
     }
     for (let w = 0; w < regMeans.length; w++) {
       const means = regMeans[w];
+      const sds = regSd[w];
       // Draw in roster-id order so the same team gets the same random draw across scenarios.
-      for (const i of drawOrder) scores[i] = means[i] + input.sd * normal(next);
+      for (const i of drawOrder) scores[i] = means[i] + sds[i] * normal(next);
       for (const [ia, ib] of regPairs[w]) {
         if (scores[ia] > scores[ib]) wins[ia]++;
         else wins[ib]++;
@@ -164,7 +171,7 @@ export function simulateSeason(input: SimInput, runs: number, seed = 20_261_018,
       const weeks = input.playoffWeeks.slice(round * input.weeksPerRound, round * input.weeksPerRound + input.weeksPerRound);
       const draw = (i: number) => {
         let sc = 0;
-        for (const w of weeks.length ? weeks : [input.playoffWeeks.at(-1) ?? 17]) sc += playoffMeans.get(w)![i] + input.sd * normal(next);
+        for (const w of weeks.length ? weeks : [input.playoffWeeks.at(-1) ?? 17]) sc += playoffMeans.get(w)![i] + teamSd[i] * normal(next);
         return sc;
       };
       const resting = round === 0 ? alive.slice(0, byes) : [];

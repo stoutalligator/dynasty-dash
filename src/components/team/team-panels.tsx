@@ -104,7 +104,7 @@ export function TeamStatTiles({ t, model }: { t: TeamAnalysis; model: LeagueMode
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
       <StatTile label="Points for" value={fmtPts(t.team.pointsFor)} sub={`Against ${fmtPts(t.team.pointsAgainst)}`} />
       <StatTile label="Potential points" value={fmtPts(t.team.potentialPoints)} sub={t.team.potentialPoints ? `${Math.round((t.team.pointsFor / t.team.potentialPoints) * 100)}% lineup efficiency` : "Not provided"} />
-      <StatTile label="Best lineup" value={`${fmtPts(t.lineup.total)}`} sub={`adj. PPG · ${ordinal(t.lineup.rank)} of ${n}`} tone="accent" />
+      <StatTile label="Best lineup" value={`${fmtPts(t.lineup.total)}`} sub={`form PPG · ${ordinal(t.lineup.rank)} of ${n}`} tone="accent" />
       {t.projectedLineup ? (
         <StatTile label={`Projected wk ${t.projectedLineup.week}`} value={fmtPts(t.projectedLineup.total)} sub={`${ordinal(t.projectedLineup.rank)} of ${n} · healthy starters`} />
       ) : (
@@ -138,11 +138,11 @@ export function PositionGradesCard({ t, model }: { t: TeamAnalysis; model: Leagu
               label={pos}
               score={g.overall.score}
               grade={g.overall.grade}
-              detail={`Top ${model.startersPerPosition[pos]}: ${g.starterPpg} adj. PPG (${ordinal(g.starterRank)}) · value ${fmtInt(g.value)} (${ordinal(g.valueRank)})`}
+              detail={`Top ${model.startersPerPosition[pos]}: ${g.starterPpg} form PPG (${ordinal(g.starterRank)}) · value ${fmtInt(g.value)} (${ordinal(g.valueRank)})`}
             />
           );
         })}
-        <GradeBar label="Depth" score={t.depth.score} grade={t.depth.grade} detail={`Backups' adj. PPG rank ${ordinal(t.depth.rank)}`} />
+        <GradeBar label="Depth" score={t.depth.score} grade={t.depth.grade} detail={`Backups' form PPG rank ${ordinal(t.depth.rank)}`} />
         <GradeBar label="Picks" score={t.capital.score} grade={t.capital.grade} detail={`Draft capital rank ${ordinal(t.capital.rank)}`} />
       </div>
       <div className="grid border-t border-line text-center text-[11px]" style={{ gridTemplateColumns: `repeat(${model.gradedPositions.length}, minmax(0, 1fr))` }}>
@@ -293,8 +293,8 @@ export function LineupCard({ t }: { t: TeamAnalysis }) {
     <Card>
       <CardHeader
         title="Lineups"
-        subtitle={`Best possible: ${fmtPts(t.lineup.total)} adj. PPG (${fmtPts(t.injuryAdjustedLineupTotal)} without unavailable players)${proj ? ` · Projected week ${proj.week}: ${fmtPts(proj.total)} (${ordinal(proj.rank)})` : ""}`}
-        info="Best possible: built from actual 2026 production (league scoring), filling the most restrictive slots first; adjusted PPG divides by at least 2 games. Projected: the best lineup by Sleeper's projections for this week, excluding players listed Out/IR."
+        subtitle={`Best possible: ${fmtPts(t.lineup.total)} form PPG (${fmtPts(t.injuryAdjustedLineupTotal)} without unavailable players)${proj ? ` · Projected week ${proj.week}: ${fmtPts(proj.total)} (${ordinal(proj.rank)})` : ""}`}
+        info="Best possible: built from each player's form PPG (league scoring, recent games weighted more: a game's weight halves every 3 games back, blended with the season average so one big week can't dominate), filling the most restrictive slots first. Projected: the best lineup by Sleeper's projections for this week, excluding players listed Out/IR."
       />
       {proj ? (
         <Tabs tabs={[{ key: "lineup-best", label: "From production" }, { key: "lineup-proj", label: `Projected wk ${proj.week}` }]} className="[&>[role=tablist]]:mx-4 [&>[role=tablist]]:mb-1">

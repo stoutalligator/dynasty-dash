@@ -121,7 +121,7 @@ export function ThisWeekCard({ model, t }: { model: LeagueModel; t: TeamAnalysis
           )}
           {ss.locked > 0 && (
             <p className="mt-2 flex items-center gap-1.5 text-[11px] text-ink-3">
-              <Lock aria-hidden className="size-3" /> {ss.locked} better swap{ss.locked > 1 ? "s" : ""} involve players who already played this week.
+              <Lock aria-hidden className="size-3" /> {ss.locked} better swap{ss.locked > 1 ? "s involve" : " involves"} players who already played this week.
             </p>
           )}
           {ss.swaps.length > 0 && <p className="mt-2 text-[11px] text-ink-3">Make changes in the Sleeper app. Players lock when their game starts.</p>}

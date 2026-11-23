@@ -7,7 +7,7 @@ import { packageValue, type TradeAsset } from "./assets";
 export type TradeObjective = Strategy;
 
 /**
- * Side score = strategy-adjusted net value (per 1,000) + lineup weight × adj. PPG change
+ * Side score = strategy-adjusted net value (per 1,000) + lineup weight × lineup change (measured through the strategy lens)
  * + need weight × severity of needs addressed − roster-overflow penalty.
  */
 export const OBJECTIVE_WEIGHTS: Record<TradeObjective, { lineup: number; need: number }> = {
@@ -22,10 +22,36 @@ export const OBJECTIVE_WEIGHTS: Record<TradeObjective, { lineup: number; need: n
  */
 export function strategyMultiplier(strategy: Strategy, a: TradeAsset): number {
   const young = a.kind === "pick" || (a.age != null && a.age <= YOUNG);
+  // Injured (Out/IR) players: a contender gets little this season, a retooler some; a rebuilder is
+  // buying the long term, so the injury barely matters.
+  const hurt = a.kind === "player" && a.unavailable;
   if (strategy === "rebuild") return young ? 1.15 : a.ageRisk ? 0.75 : 0.95;
-  if (strategy === "contender") return a.kind === "pick" ? 0.85 : 1;
-  return a.ageRisk ? 0.9 : 1;
+  if (strategy === "contender") return a.kind === "pick" ? 0.85 : hurt ? 0.85 : 1;
+  return (a.ageRisk ? 0.9 : 1) * (hurt ? 0.95 : 1);
 }
+
+/**
+ * How each strategy measures a player's weekly contribution for lineup impact. Contenders care
+ * about the rest of this season (Sleeper's projections, which are ~0 while a player is out);
+ * retoolers split the difference with current production; rebuilders don't weigh lineups at all.
+ */
+export type LineupLens = "production" | "rest-of-season" | "blend";
+export const LINEUP_LENS: Record<Strategy, LineupLens> = { contender: "rest-of-season", retool: "blend", rebuild: "production" };
+
+export function lensScore(x: { formPpg: number | null; rosPpg: number | null; unavailable: boolean }, lens: LineupLens): number {
+  const prod = x.formPpg ?? 0;
+  // Unprojected players fall back to production, unless they are ruled out.
+  const ros = x.rosPpg ?? (x.unavailable ? 0 : prod);
+  if (lens === "production") return prod;
+  if (lens === "rest-of-season") return ros;
+  return (prod + ros) / 2;
+}
+
+export const LENS_UNIT: Record<LineupLens, string> = {
+  production: "PPG (recent form)",
+  "rest-of-season": "projected pts/wk (rest of season)",
+  blend: "pts/wk (production + rest-of-season projection)",
+};
 
 export type SideImpact = {
   rosterId: number;
@@ -37,6 +63,8 @@ export type SideImpact = {
   valueIn: number;
   /** Package-adjusted value change. */
   netValue: number;
+  /** How lineup impact was measured for this side (follows its strategy). */
+  lens: LineupLens;
   lineupBefore: number;
   lineupAfter: number;
   lineupDelta: number;
@@ -74,10 +102,10 @@ export type TradeEvaluation = {
 const YOUNG = 25;
 
 type Cand = LineupCandidate;
-const asCand = (p: { id: string; position: string | null; prod?: { adjPpg: number } | null }): Cand => ({
+const asCand = (p: TeamAnalysis["players"][number], lens: LineupLens): Cand => ({
   id: p.id,
   positions: p.position ? [p.position] : [],
-  score: p.prod?.adjPpg ?? 0,
+  score: lensScore({ formPpg: p.prod?.formPpg ?? null, rosPpg: p.rosPpg, unavailable: p.tags.includes("Unavailable") }, lens),
 });
 
 /** Per-team data that every candidate trade reuses (computed once per team per model). */
@@ -86,27 +114,31 @@ type TeamCtx = {
   /** Active players sorted by value ascending: the first ones are cut when a roster overflows. */
   cutOrder: TeamAnalysis["players"];
   before: Cand[];
+  lineupBefore: number;
   topBefore: Map<string, number>;
   playersBefore: { age: number | null; value: number; assetId: string }[];
   /** Lineup outcome per (players out, players in); picks never change a lineup, so many pairs share one. */
   lineups: Map<string, { lineupAfter: number; positionDeltas: SideImpact["positionDeltas"]; needsAddressed: SkillPosition[]; needSeverity: number }>;
 };
-const teamCtxCache = new WeakMap<TeamAnalysis, TeamCtx>();
+const teamCtxCache = new WeakMap<TeamAnalysis, Map<LineupLens, TeamCtx>>();
 
-function teamCtx(model: LeagueModel, team: TeamAnalysis): TeamCtx {
-  let c = teamCtxCache.get(team);
+function teamCtx(model: LeagueModel, team: TeamAnalysis, lens: LineupLens): TeamCtx {
+  let byLens = teamCtxCache.get(team);
+  if (!byLens) teamCtxCache.set(team, (byLens = new Map()));
+  let c = byLens.get(lens);
   if (!c) {
     const active = team.players.filter((p) => p.slot === "starter" || p.slot === "bench");
-    const before = active.map(asCand);
+    const before = active.map((p) => asCand(p, lens));
     c = {
       active,
       cutOrder: [...active].sort((a, b) => (a.value ?? 0) - (b.value ?? 0)),
       before,
+      lineupBefore: optimalLineup(before, model.league.startingSlots).total,
       topBefore: new Map(model.gradedPositions.map((pos) => [pos, round1(topK(before, pos, model.startersPerPosition[pos]))])),
       playersBefore: team.players.map((p) => ({ age: p.age, value: p.value ?? 0, assetId: p.assetId })),
       lineups: new Map(),
     };
-    teamCtxCache.set(team, c);
+    byLens.set(lens, c);
   }
   return c;
 }
@@ -132,7 +164,8 @@ const futureValue = (assets: TradeAsset[]) =>
  * full explanation (`evaluateSide`) for the ones it keeps.
  */
 export function scoreSide(model: LeagueModel, team: TeamAnalysis, gives: TradeAsset[], gets: TradeAsset[], strategy: Strategy) {
-  const ctx = teamCtx(model, team);
+  const lens = LINEUP_LENS[strategy];
+  const ctx = teamCtx(model, team, lens);
   const giveIds = new Set(gives.map((a) => a.assetId));
   const playersIn = gets.filter((a) => a.kind === "player");
 
@@ -141,7 +174,7 @@ export function scoreSide(model: LeagueModel, team: TeamAnalysis, gives: TradeAs
   if (!lu) {
     const after = [
       ...ctx.before.filter((c) => !giveIds.has(`player:${c.id}`)),
-      ...playersIn.map((a) => ({ id: a.assetId.slice("player:".length), positions: a.position ? [a.position] : [], score: a.adjPpg ?? 0 })),
+      ...playersIn.map((a) => ({ id: a.assetId.slice("player:".length), positions: a.position ? [a.position] : [], score: lensScore(a, lens) })),
     ];
     const positionDeltas = model.gradedPositions
       .map((pos) => ({ position: pos, before: ctx.topBefore.get(pos)!, after: round1(topK(after, pos, model.startersPerPosition[pos])) }))
@@ -155,7 +188,7 @@ export function scoreSide(model: LeagueModel, team: TeamAnalysis, gives: TradeAs
     ctx.lineups.set(key, lu);
   }
   const { lineupAfter, positionDeltas, needsAddressed, needSeverity } = lu;
-  const lineupDelta = Math.round((lineupAfter - team.lineup.total) * 100) / 100;
+  const lineupDelta = Math.round((lineupAfter - ctx.lineupBefore) * 100) / 100;
 
   const activeLimit = model.league.startingSlots.length + model.league.benchSlots;
   const activeOut = gives.filter((a) => a.kind === "player" && (a.slot === "starter" || a.slot === "bench")).length;
@@ -169,7 +202,7 @@ export function scoreSide(model: LeagueModel, team: TeamAnalysis, gives: TradeAs
   const w = OBJECTIVE_WEIGHTS[strategy];
   const effectiveNet = effectiveValue(gets, strategy) - effectiveValue(gives, strategy);
   const score = (effectiveNet - cutCost) / 1000 + w.lineup * lineupDelta + w.need * needSeverity - 0.1 * rosterOverflow;
-  return { ctx, giveIds, lineupAfter, lineupDelta, positionDeltas, needsAddressed, activeLimit, rosterOverflow, cuts, score: Math.round(score * 100) / 100 };
+  return { ctx, lens, giveIds, lineupAfter, lineupDelta, positionDeltas, needsAddressed, activeLimit, rosterOverflow, cuts, score: Math.round(score * 100) / 100 };
 }
 
 // The generator passes the same package arrays to thousands of pairs, so per-package work is cached on the array.
@@ -191,7 +224,7 @@ function effectiveValue(assets: TradeAsset[], strategy: Strategy): number {
 }
 
 export function evaluateSide(model: LeagueModel, team: TeamAnalysis, gives: TradeAsset[], gets: TradeAsset[], strategy: Strategy): SideImpact {
-  const { ctx, giveIds, lineupAfter, lineupDelta, positionDeltas, needsAddressed, activeLimit, rosterOverflow, cuts, score } = scoreSide(model, team, gives, gets, strategy);
+  const { ctx, lens, giveIds, lineupAfter, lineupDelta, positionDeltas, needsAddressed, activeLimit, rosterOverflow, cuts, score } = scoreSide(model, team, gives, gets, strategy);
   const valueOut = packageValue(gives.map((a) => a.value));
   const valueIn = packageValue(gets.map((a) => a.value));
   const netValue = valueIn - valueOut;
@@ -204,8 +237,13 @@ export function evaluateSide(model: LeagueModel, team: TeamAnalysis, gives: Trad
 
   const reasonsFor: string[] = [];
   const reasonsAgainst: string[] = [];
-  if (lineupDelta >= 1) reasonsFor.push(`Best lineup improves by ${lineupDelta.toFixed(1)} adj. PPG.`);
-  if (lineupDelta <= -1) reasonsAgainst.push(`Best lineup drops by ${Math.abs(lineupDelta).toFixed(1)} adj. PPG.`);
+  const unit = LENS_UNIT[lens];
+  if (lineupDelta >= 1) reasonsFor.push(`Best lineup improves by ${lineupDelta.toFixed(1)} ${unit}.`);
+  if (lineupDelta <= -1) reasonsAgainst.push(`Best lineup drops by ${Math.abs(lineupDelta).toFixed(1)} ${unit}.`);
+  for (const a of gets.filter((x) => x.kind === "player" && x.unavailable)) {
+    if (strategy === "rebuild") reasonsFor.push(`${a.label} is injured, which matters little for a rebuild (possible buy-low).`);
+    else reasonsAgainst.push(`${a.label} is ruled out: projected ${(a.rosPpg ?? 0).toFixed(1)} pts/wk for the rest of this season${strategy === "contender" ? ", so little help for a title run" : ""}.`);
+  }
   if (needsAddressed.length) reasonsFor.push(`Addresses a weak spot: ${needsAddressed.join(", ")}.`);
   if (netValue > 300) reasonsFor.push(`Gains ${netValue.toLocaleString()} in package-adjusted value.`);
   if (netValue < -300) reasonsAgainst.push(`Gives up ${Math.abs(netValue).toLocaleString()} in package-adjusted value.`);
@@ -224,7 +262,8 @@ export function evaluateSide(model: LeagueModel, team: TeamAnalysis, gives: Trad
     valueOut,
     valueIn,
     netValue,
-    lineupBefore: team.lineup.total,
+    lens,
+    lineupBefore: ctx.lineupBefore,
     lineupAfter,
     lineupDelta,
     positionDeltas,

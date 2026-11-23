@@ -69,7 +69,7 @@ export function buildWaiverBoard(model: LeagueModel, me: TeamAnalysis | null, wa
 
   // My eligible lineup pool, for "would he start for me?".
   const myPool = me
-    ? me.players.filter((p) => p.slot === "starter" || p.slot === "bench").map((p) => ({ id: p.id, positions: p.position ? [p.position] : [], score: p.prod?.adjPpg ?? 0 }))
+    ? me.players.filter((p) => p.slot === "starter" || p.slot === "bench").map((p) => ({ id: p.id, positions: p.position ? [p.position] : [], score: p.prod?.formPpg ?? 0 }))
     : [];
   const needs = new Set(me?.needs.map((n) => n.position) ?? []);
 
@@ -100,7 +100,7 @@ export function buildWaiverBoard(model: LeagueModel, me: TeamAnalysis | null, wa
       );
 
       const lineupGain = me
-        ? round(optimalLineup([...myPool, { id: p.id, positions: p.position ? [p.position] : [], score: p.prod?.adjPpg ?? 0 }], model.league.startingSlots).total - me.lineup.total)
+        ? round(optimalLineup([...myPool, { id: p.id, positions: p.position ? [p.position] : [], score: p.prod?.formPpg ?? 0 }], model.league.startingSlots).total - me.lineup.total)
         : 0;
       const unavailable = !!p.injury && isUnavailable({ injury: p.injury } as PlayerInfo);
       const producing = (p.prod?.last3Ppg ?? 0) >= replacement || (p.projWeek ?? 0) >= replacement;
@@ -119,11 +119,12 @@ export function buildWaiverBoard(model: LeagueModel, me: TeamAnalysis | null, wa
       } else {
         reasons.push("No NFL production yet this season");
       }
+      if (p.trend?.kind === "rising-role") reasons.push(`Rising role: ${p.trend.note}`);
       if (p.projWeek != null && p.projWeek > 0) reasons.push(`Projected ${p.projWeek.toFixed(1)} this week${p.projNext != null ? `, ${p.projNext.toFixed(1)} over the next ${model.projectionWeeks.length}` : ""}`);
       if (p.trendingAdds) reasons.push(`${fmtInt(p.trendingAdds)} Sleeper adds in 48h`);
       if (p.value) reasons.push(`Dynasty value ${fmtInt(p.value)}${p.positionRank ? ` (${pos}${p.positionRank})` : ""}`);
       if (p.age != null && p.age <= 24 && (p.yearsExp ?? 9) <= 2 && !p.value) reasons.push(`Age ${p.age?.toFixed(1)}, ${p.yearsExp === 0 ? "rookie" : `${p.yearsExp} yr exp`}: development upside`);
-      if (lineupGain > 0.05) reasons.push(`Would start for you: +${lineupGain.toFixed(1)} adj. PPG to your best lineup`);
+      if (lineupGain > 0.05) reasons.push(`Would start for you: +${lineupGain.toFixed(1)} form PPG to your best lineup`);
       if (needs.has(pos as never)) reasons.push(`Plays a position you need (${pos})`);
       if (unavailable) reasons.push(`Listed ${p.injury!.status} by Sleeper`);
       const droppedBy = dropped.get(p.id) ?? null;

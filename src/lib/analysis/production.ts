@@ -22,6 +22,12 @@ export type PlayerProduction = {
   ppg: number;
   /** total / max(games, 2): shrinks tiny samples toward zero. Used for lineup strength. */
   adjPpg: number;
+  /**
+   * Recency-weighted PPG over games played: each game's weight halves every FORM_HALF_LIFE games
+   * back, plus one game's worth of the season's adjusted PPG as a prior so one big week can't
+   * dominate. Used for lineups, grades, waiver fit and trade impact.
+   */
+  formPpg: number;
   /** PPG over the last three games played. */
   last3Ppg: number | null;
   /** Average offensive snap share (0–1) in games played. */
@@ -41,13 +47,30 @@ export type PlayerProduction = {
 };
 
 export const MIN_SAMPLE_WEEKS = 2;
+/** Games after which a game's weight in form PPG halves. */
+export const FORM_HALF_LIFE = 3;
+const FORM_PRIOR_GAMES = 1;
+
+/** Recency-weighted points per game (see PlayerProduction.formPpg). */
+export function formPpg(pointsOldestFirst: number[], seasonAdjPpg: number): number {
+  const n = pointsOldestFirst.length;
+  if (!n) return 0;
+  let num = FORM_PRIOR_GAMES * seasonAdjPpg;
+  let den = FORM_PRIOR_GAMES;
+  pointsOldestFirst.forEach((pts, i) => {
+    const w = 0.5 ** ((n - 1 - i) / FORM_HALF_LIFE);
+    num += w * pts;
+    den += w;
+  });
+  return num / den;
+}
 
 export const round = (n: number, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 
 function blank(id: string, source: PlayerProduction["source"]): PlayerProduction {
   return {
-    playerId: id, activeWeeks: 0, total: 0, ppg: 0, adjPpg: 0, last3Ppg: null, snapShare: null, snapShareLast3: null, snapTrend: null,
+    playerId: id, activeWeeks: 0, total: 0, ppg: 0, adjPpg: 0, formPpg: 0, last3Ppg: null, snapShare: null, snapShareLast3: null, snapTrend: null,
     oppPerGame: null, oppLast3: null, weeksStarted: 0, weeksBenched: 0, benchPoints: 0, weekly: [], source,
   };
 }
@@ -73,6 +96,7 @@ function finalize(p: PlayerProduction) {
   p.ppg = p.activeWeeks ? round(p.total / p.activeWeeks) : 0;
   p.adjPpg = round(p.total / Math.max(p.activeWeeks, MIN_SAMPLE_WEEKS));
   const played = p.weekly.filter((w) => w.played);
+  p.formPpg = round(formPpg([...played].sort((a, b) => a.week - b.week).map((w) => w.points), p.adjPpg));
   const last3 = played.slice(-3);
   p.last3Ppg = last3.length ? round(last3.reduce((a, w) => a + w.points, 0) / last3.length) : null;
   const snaps = played.map((w) => w.snapShare).filter((s): s is number => s != null);

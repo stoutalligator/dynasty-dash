@@ -82,7 +82,7 @@ export function PlayerDrawer({ player: p, teamName, onClose }: { player: PlayerV
 
         {p.rosterId != null && (
           <p className="px-4 text-xs text-ink-2">
-            Lineup impact: <span className="text-ink">{p.lineupImpact > 0 ? `${fmtPts(p.lineupImpact)} adj. PPG` : "not in the best lineup"}</span>
+            Lineup impact: <span className="text-ink">{p.lineupImpact > 0 ? `${fmtPts(p.lineupImpact)} form PPG` : "not in the best lineup"}</span>
             {p.tags.length > 0 && <> · {p.tags.join(", ")}</>}
           </p>
         )}

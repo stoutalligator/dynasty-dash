@@ -101,7 +101,7 @@ async function Analytics() {
         </Card>
 
         <Card>
-          <CardHeader title="Positional production ranks" subtitle="Rank of each team's top starters' adj. PPG (1 = best); deeper blue = stronger" />
+          <CardHeader title="Positional production ranks" subtitle="Rank of each team's top starters' form PPG (1 = best); deeper blue = stronger" />
           <div className="overflow-x-auto px-4 pb-4">
             <table className="tnum w-full text-xs">
               <thead>
@@ -119,7 +119,7 @@ async function Analytics() {
                       const pct = (n - r) / (n - 1);
                       return (
                         <td key={p} className="p-0.5">
-                          <div className="rounded-md py-1 text-center font-semibold" style={heat(pct)} title={`${t.positions[p].starterPpg} adj. PPG`}>
+                          <div className="rounded-md py-1 text-center font-semibold" style={heat(pct)} title={`${t.positions[p].starterPpg} form PPG`}>
                             {r}
                           </div>
                         </td>
