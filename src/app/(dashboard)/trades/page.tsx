@@ -6,6 +6,7 @@ import { Notice, PageTitle } from "@/components/ui";
 import type { TeamAnalysis } from "@/lib/analysis/types";
 import { assetIndex, teamAssets } from "@/lib/trades/assets";
 import { evaluateTrade } from "@/lib/trades/evaluate";
+import { tradeWindow, tradeWindowNote } from "@/lib/league/trade-window";
 import { generateTrades } from "@/lib/trades/generate";
 import { getLeague, myTeam } from "@/lib/server/data";
 import { defaultTrades } from "@/lib/server/insights";
@@ -27,6 +28,8 @@ async function Hub({ searchParams }: { searchParams: Promise<{ partner?: string 
   if (!me) return <Notice level="error">Your team could not be verified, so trades cannot be generated. Check Settings.</Notice>;
 
   const objective = me.strategy.effective;
+  const tw = tradeWindow(model.league);
+  const windowNote = tradeWindowNote(tw);
   const partnerId = partner && model.teams.some((t) => t.team.rosterId === Number(partner) && !t.team.isMine) ? Number(partner) : null;
   const proposals = partnerId
     ? annotateTradeOdds(model, generateTrades(model, me.team.rosterId, { objective, partnerRosterIds: [partnerId], perPartner: 15, limit: 40, untouchables: prefs.untouchables, tradeBlock: prefs.tradeBlock, targets: prefs.targets }), objective)
@@ -52,6 +55,11 @@ async function Hub({ searchParams }: { searchParams: Promise<{ partner?: string 
         title="Trade Hub"
         subtitle="Two-team trade ideas grounded in every roster, each team's needs and window, and both sides' lineup impact"
       />
+      {windowNote && (
+        <div className="mb-4">
+          <Notice level={tw.state === "open" ? "info" : "warning"}>{windowNote}</Notice>
+        </div>
+      )}
       {model.valuation.kind === "internal-estimate" && (
         <div className="mb-4">
           <Notice level="warning">No third-party valuation source is active, so trade values are internal estimates from production and age. Treat rankings as approximate.</Notice>

@@ -83,7 +83,8 @@ export class DataCache {
 
   /** Refresh a key in the background; the response is not held up (Next's `after` keeps serverless functions alive). */
   private revalidate<T>(key: string, fetcher: () => Promise<T>) {
-    if (this.revalidating.has(key) || this.inflight.has(key)) return;
+    // (Called from inside `resolve`, so this key is always in `inflight`; only de-dupe revalidations.)
+    if (this.revalidating.has(key)) return;
     this.revalidating.add(key);
     const p = fetcher()
       .then((data) => this.write(key, data))

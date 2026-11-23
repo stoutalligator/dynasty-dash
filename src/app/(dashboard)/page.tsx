@@ -14,6 +14,7 @@ import { defaultTrades, myRecommendations } from "@/lib/server/insights";
 import { buildWaiverBoard } from "@/lib/analysis/waivers";
 import { TierBadge } from "@/components/waivers/waiver-explorer";
 import { fmtPts } from "@/lib/format";
+import { tradeWindow, tradeWindowNote } from "@/lib/league/trade-window";
 
 async function Dashboard() {
   const { model, prefs } = await getLeague();
@@ -26,6 +27,8 @@ async function Dashboard() {
     );
   }
   const recs = myRecommendations(model, prefs);
+  const tw = tradeWindow(model.league);
+  const tradeNote = tradeWindowNote(tw);
   const trades = defaultTrades(model, prefs, t.strategy.effective).slice(0, 3);
   const injured = t.players.filter((p) => p.injury && p.slot !== "taxi").sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
   const errors = model.issues.filter((i) => i.level === "error");
@@ -58,6 +61,11 @@ async function Dashboard() {
               subtitle={`Objective: ${t.strategy.effective} · ranked by benefit to you, with the partner's incentives weighed in`}
               action={<Link href="/trades" className="text-xs text-accent hover:underline">Trade Hub →</Link>}
             />
+            {tradeNote && (
+              <div className="px-4 pb-3">
+                <Notice level={tw.state === "open" ? "info" : "warning"}>{tradeNote}</Notice>
+              </div>
+            )}
             {trades.length ? (
               <div className="grid gap-3 px-4 pb-4 md:grid-cols-2 2xl:grid-cols-3">
                 {trades.map((e) => (

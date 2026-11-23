@@ -1,3 +1,4 @@
+import { tradeWindow } from "@/lib/league/trade-window";
 import { buildWaiverBoard } from "@/lib/analysis/waivers";
 import type { LeagueModel, Strategy } from "@/lib/analysis/types";
 import { fmtInt, fmtPts, ordinal } from "@/lib/format";
@@ -76,11 +77,12 @@ export function buildDigest(model: LeagueModel, trades: TradeEvaluation[], previ
     empty: "No injury designations on your active roster.",
   });
 
-  // Trade ideas
+  // Trade ideas (none while Sleeper has trades locked after the deadline)
+  const tradesLocked = tradeWindow(model.league).state === "closed";
   sections.push({
     key: "trades",
     title: `Trade ideas (${me?.strategy.effective ?? "retool"} objective)`,
-    items: trades.slice(0, 3).map((e) => ({
+    items: (tradesLocked ? [] : trades.slice(0, 3)).map((e) => ({
       title: `${e.partner.teamName}: give ${e.mine.gives.map((a) => a.label).join(" + ")} for ${e.mine.gets.map((a) => a.label).join(" + ")}`,
       detail: [
         `lineup ${e.mine.lineupDelta >= 0 ? "+" : ""}${fmtPts(e.mine.lineupDelta)} PPG`,
@@ -91,7 +93,7 @@ export function buildDigest(model: LeagueModel, trades: TradeEvaluation[], previ
         .filter(Boolean)
         .join(" · "),
     })),
-    empty: "No trade cleared the realism filters.",
+    empty: tradesLocked ? "Trades are locked until the season ends (past the trade deadline)." : "No trade cleared the realism filters.",
   });
 
   // League posture changes and the deadline
@@ -104,8 +106,9 @@ export function buildDigest(model: LeagueModel, trades: TradeEvaluation[], previ
       }
     }
   }
-  const deadline = model.league.tradeDeadline;
-  if (deadline && week != null && week <= deadline) league.push({ title: `Trade deadline: week ${deadline} (${deadline - week === 0 ? "this week" : `${deadline - week} week${deadline - week > 1 ? "s" : ""} away`})` });
+  const tw = tradeWindow(model.league);
+  if (tw.state === "deadline-week") league.push({ title: `Trade deadline: week ${tw.deadline} (this week)` });
+  else if (tw.state === "open" && tw.weeksLeft != null) league.push({ title: `Trade deadline: week ${tw.deadline} (${tw.weeksLeft} week${tw.weeksLeft > 1 ? "s" : ""} away)` });
   if (model.odds) {
     const top = [...model.odds.teams].sort((a, b) => b.titlePct - a.titlePct).slice(0, 3);
     league.push({ title: `Title favorites: ${top.map((o) => `${model.teams.find((t) => t.team.rosterId === o.rosterId)?.team.teamName} ${pct(o.titlePct)}`).join(", ")}` });

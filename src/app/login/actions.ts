@@ -19,7 +19,12 @@ export async function login(_prev: { error: string | null }, form: FormData): Pr
     path: "/",
     maxAge: SESSION_DAYS * 86400,
   });
-  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+  redirect(safeNext(next));
+}
+
+/** Same-site path only: rejects "//host" and "/\host" (browsers treat a backslash like a slash). */
+function safeNext(next: string): string {
+  return /^\/(?![/\\])/.test(next) && !/[\r\n]/.test(next) ? next : "/";
 }
 
 export async function logout() {

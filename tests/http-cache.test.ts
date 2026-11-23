@@ -52,6 +52,41 @@ describe("FileCache", () => {
   });
 });
 
+describe("stale-while-revalidate", () => {
+  const dir = () => mkdtempSync(path.join(os.tmpdir(), "dd-cache-"));
+  it("serves an expired copy at once and refreshes it in the background", async () => {
+    vi.useFakeTimers();
+    try {
+      const cache = new DataCache(new FileStore(dir()));
+      await cache.getOrFetch("swr", async () => 1, { ttlMs: 1000 });
+      vi.advanceTimersByTime(5000);
+      let release!: () => void;
+      const slow = new Promise<number>((r) => (release = () => r(2)));
+      const served = await cache.getOrFetch("swr", () => slow, { ttlMs: 1000, staleWhileRevalidateMs: 60_000 });
+      expect(served.data).toBe(1); // not blocked on the slow refresh
+      release();
+      vi.useRealTimers();
+      await vi.waitFor(async () => expect((await cache.read<number>("swr"))?.data).toBe(2));
+      expect((await cache.getOrFetch("swr", async () => 3, { ttlMs: 1000 })).data).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("blocks for a fresh copy once the window has passed", async () => {
+    vi.useFakeTimers();
+    try {
+      const cache = new DataCache(new FileStore(dir()));
+      await cache.getOrFetch("swr2", async () => 1, { ttlMs: 1000 });
+      vi.advanceTimersByTime(120_000);
+      const r = await cache.getOrFetch("swr2", async () => 2, { ttlMs: 1000, staleWhileRevalidateMs: 60_000 });
+      expect(r.data).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("parsePickName", () => {
   it("parses generic and bucketed pick names", () => {
     expect(parsePickName("2027 1st")).toEqual({ season: "2027", round: 1, bucket: null });
