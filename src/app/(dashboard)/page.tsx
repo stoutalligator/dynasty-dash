@@ -6,12 +6,11 @@ import { StandingsTable } from "@/components/league/standings-table";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { PageSuspense } from "@/components/page-suspense";
 import { Recommendations } from "@/components/team/recommendations";
-import { TeamHeader, TeamStatTiles } from "@/components/team/team-panels";
+import { TeamHeader } from "@/components/team/team-panels";
 import { ProposalSummary } from "@/components/trades/proposal-summary";
 import { ValueMoversCard } from "@/components/team/value-movers";
 import { ThisWeekCard } from "@/components/week/this-week-card";
 import { GuestOverview } from "@/components/league/guest-overview";
-import { SeasonTrendCard } from "@/components/team/season-trend";
 import { TrendsCard } from "@/components/team/trends-card";
 import { rankMovement, readSnapshots } from "@/lib/snapshots/store";
 import { Card, CardHeader, Notice, PosBadge, Skeleton, STRATEGY_TEXT } from "@/components/ui";
@@ -31,7 +30,7 @@ async function Dashboard() {
   const errors = model.issues.filter((i) => i.level === "error");
   const waiverTop = buildWaiverBoard(model, t, model.league.waiverBudget)
     .candidates.filter((c) => c.tier === "Strong add" || c.tier === "Worth a look" || c.lineupGain > 0.05)
-    .slice(0, 5);
+    .slice(0, 4);
 
   return (
     <>
@@ -41,7 +40,6 @@ async function Dashboard() {
         </div>
       ))}
       <TeamHeader t={t} n={model.teams.length} odds={model.odds?.teams.find((o) => o.rosterId === t.team.rosterId)} />
-      <TeamStatTiles t={t} model={model} />
 
       <div className="mt-5 grid gap-5 xl:grid-cols-3">
         <div className="space-y-5 xl:col-span-2">
@@ -52,12 +50,12 @@ async function Dashboard() {
 
           <Card>
             <CardHeader title="Standings" action={<Link href="/league" className="text-xs text-accent hover:underline">League →</Link>} />
-            <StandingsTable model={model} movement={rankMovement(snaps, model)} />
+            <StandingsTable model={model} compact movement={rankMovement(snaps, model)} />
           </Card>
         </div>
 
         <div className="space-y-5">
-          <TrendsCard model={model} t={t} />
+          <TrendsCard model={model} t={t} mineOnly />
           <Card>
             <CardHeader title="Waiver wire" subtitle="Best available pickups for your roster" action={<Link href="/waivers" className="text-xs text-accent hover:underline">All →</Link>} />
             {waiverTop.length ? (
@@ -77,10 +75,9 @@ async function Dashboard() {
             )}
           </Card>
           <ValueMoversCard t={t} model={model} />
-          <SeasonTrendCard snaps={snaps} rosterId={t.team.rosterId} />
           <Card>
             <CardHeader title="Recent activity" action={<Link href="/league#activity" className="text-xs text-accent hover:underline">All →</Link>} />
-            <ActivityFeed model={model} limit={6} />
+            <ActivityFeed model={model} limit={3} />
           </Card>
         </div>
       </div>
@@ -101,13 +98,13 @@ async function DashboardTradeCards() {
   const recs = myRecommendations(model, prefs);
   const tw = tradeWindow(model.league);
   const tradeNote = tradeWindowNote(tw);
-  const trades = defaultTrades(model, prefs, t.strategy.effective).slice(0, 3);
+  const trades = defaultTrades(model, prefs, t.strategy.effective).slice(0, 2);
   return (
     <>
           {recs && (
             <Card>
               <CardHeader title="Recommended next actions" subtitle="The moves that help your team most right now" action={<Link href="/team" className="text-xs text-accent hover:underline">Full analysis →</Link>} />
-              <Recommendations recs={recs} recommended={t.strategy.effective} limit={4} />
+              <Recommendations recs={recs} recommended={t.strategy.effective} limit={3} />
             </Card>
           )}
 
@@ -123,7 +120,7 @@ async function DashboardTradeCards() {
               </div>
             )}
             {trades.length ? (
-              <div className="grid gap-3 px-4 pb-4 md:grid-cols-2 2xl:grid-cols-3">
+              <div className="grid gap-3 px-4 pb-4 md:grid-cols-2">
                 {trades.map((e) => (
                   <div key={e.id} className="rounded-lg border border-line p-3">
                     <ProposalSummary e={e} compact />

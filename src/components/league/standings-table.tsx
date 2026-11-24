@@ -5,22 +5,23 @@ import { StrategyBadge } from "@/components/ui";
 import type { LeagueModel } from "@/lib/analysis/types";
 import { fmtPts, record } from "@/lib/format";
 
-export function StandingsTable({ model, limit, showStrategy = true, movement }: { model: LeagueModel; limit?: number; showStrategy?: boolean; movement?: Map<number, number> }) {
+export function StandingsTable({ model, limit, showStrategy = true, compact = false, movement }: { model: LeagueModel; limit?: number; showStrategy?: boolean; compact?: boolean; movement?: Map<number, number> }) {
   const rows = model.standings.slice(0, limit ?? model.standings.length).map((rid) => model.teams.find((t) => t.team.rosterId === rid)!);
   const playoffLine = model.league.playoffTeams ?? null;
+  const strat = showStrategy && !compact;
   return (
     <div className="overflow-x-auto">
-      <table className="tnum w-full text-sm sm:min-w-[640px]">
+      <table className={clsx("tnum w-full text-sm", !compact && "sm:min-w-[640px]")}>
         <thead className="border-y border-line text-left text-[11px] uppercase tracking-wide text-ink-3">
           <tr>
             <th scope="col" className="w-10 py-2 pl-4 font-medium">#</th>
             <th scope="col" className="py-2 font-medium">Team</th>
             <th scope="col" className="w-16 py-2 text-right font-medium">W-L</th>
             <th scope="col" className="w-20 py-2 pr-4 text-right font-medium sm:pr-0">PF</th>
-            <th scope="col" className="hidden w-20 py-2 text-right font-medium sm:table-cell">PA</th>
-            <th scope="col" className="hidden w-24 py-2 text-right font-medium md:table-cell">Potential</th>
-            <th scope="col" className="hidden w-14 py-2 text-right font-medium sm:table-cell">PR</th>
-            {showStrategy && <th scope="col" className="hidden w-28 py-2 pr-4 pl-3 font-medium sm:table-cell">Outlook</th>}
+            {!compact && <th scope="col" className="hidden w-20 py-2 text-right font-medium sm:table-cell">PA</th>}
+            {!compact && <th scope="col" className="hidden w-24 py-2 text-right font-medium md:table-cell">Potential</th>}
+            <th scope="col" className={clsx("hidden w-20 py-2 pl-4 text-right font-medium sm:table-cell", !strat && "pr-4")}>Power</th>
+            {strat && <th scope="col" className="hidden w-28 py-2 pr-4 pl-3 font-medium sm:table-cell">Outlook</th>}
           </tr>
         </thead>
         <tbody>
@@ -42,12 +43,12 @@ export function StandingsTable({ model, limit, showStrategy = true, movement }: 
               </td>
               <td className="py-2 text-right text-ink">{record(t.team.wins, t.team.losses, t.team.ties)}</td>
               <td className="py-2 pr-4 text-right text-ink-2 sm:pr-0">{fmtPts(t.team.pointsFor)}</td>
-              <td className="hidden py-2 text-right text-ink-2 sm:table-cell">{fmtPts(t.team.pointsAgainst)}</td>
-              <td className="hidden py-2 text-right text-ink-2 md:table-cell">{fmtPts(t.team.potentialPoints)}</td>
-              <td className="hidden py-2 text-right text-ink-2 sm:table-cell">
+              {!compact && <td className="hidden py-2 text-right text-ink-2 sm:table-cell">{fmtPts(t.team.pointsAgainst)}</td>}
+              {!compact && <td className="hidden py-2 text-right text-ink-2 md:table-cell">{fmtPts(t.team.potentialPoints)}</td>}
+              <td className={clsx("hidden py-2 pl-4 text-right text-ink-2 sm:table-cell", !strat && "pr-4")}>
                 <RankMove delta={movement?.get(t.team.rosterId)} />#{t.powerRank}
               </td>
-              {showStrategy && (
+              {strat && (
                 <td className="hidden py-2 pr-4 pl-3 sm:table-cell">
                   <StrategyBadge strategy={t.strategy.effective} />
                 </td>
@@ -56,7 +57,7 @@ export function StandingsTable({ model, limit, showStrategy = true, movement }: 
           ))}
         </tbody>
       </table>
-      {playoffLine != null && !limit && <p className="px-4 pt-2 text-[11px] text-ink-3">Heavier rule marks the playoff cut ({playoffLine} teams). Sorted by record, then points for; Sleeper&apos;s official tiebreakers may differ.</p>}
+      {playoffLine != null && !limit && !compact && <p className="px-4 pt-2 text-[11px] text-ink-3">Heavier rule marks the playoff cut ({playoffLine} teams). Sorted by record, then points for; Sleeper&apos;s official tiebreakers may differ.</p>}
     </div>
   );
 }

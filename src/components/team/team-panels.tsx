@@ -63,7 +63,7 @@ export function TeamHeader({ t, n, odds }: { t: TeamAnalysis; n: number; odds?: 
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-[22px] leading-tight font-semibold tracking-tight break-words text-ink sm:truncate sm:text-[28px]">{t.team.teamName}</h1>
               <StrategyBadge strategy={t.strategy.effective} size="md" />
-              {t.strategy.override && <span className="text-[11px] text-ink-3">manual · model says {t.strategy.inferred}</span>}
+              {t.strategy.override && <span className="text-[11px] text-ink-3">set by you · we&apos;d say {t.strategy.inferred}</span>}
             </div>
             <p className="mt-1 text-sm text-ink-3">
               {t.team.manager?.displayName ?? "No manager"}
@@ -74,6 +74,8 @@ export function TeamHeader({ t, n, odds }: { t: TeamAnalysis; n: number; odds?: 
               <HeroChip label="Record" value={record(t.team.wins, t.team.losses, t.team.ties)} />
               <HeroChip label="Standing" value={`${ordinal(t.standingRank)} of ${n}`} />
               <HeroChip label="Power" value={`#${t.powerRank}`} />
+              <HeroChip label="Points" value={fmtPts(t.team.pointsFor)} />
+              <HeroChip label="Value" value={`${ordinal(t.totals.valueRank)} of ${n}`} />
             </div>
           </div>
         </div>

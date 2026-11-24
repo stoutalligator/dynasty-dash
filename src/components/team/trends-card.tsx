@@ -8,13 +8,13 @@ import { TREND_LABEL } from "@/lib/analysis/trends";
 import { fmtPts } from "@/lib/format";
 
 /** Players whose role or production clearly changed over their last three games. */
-export function TrendsCard({ model, t }: { model: LeagueModel; t: TeamAnalysis }) {
+export function TrendsCard({ model, t, mineOnly }: { model: LeagueModel; t: TeamAnalysis; mineOnly?: boolean }) {
   const mine = t.players.filter((p) => p.trend && p.slot !== "taxi").sort((a, b) => order(a) - order(b) || (b.value ?? 0) - (a.value ?? 0)).slice(0, 5);
-  const fa = model.freeAgents.filter((p) => p.trend?.kind === "rising-role").sort((a, b) => b.trend!.recentPpg - a.trend!.recentPpg).slice(0, 4);
+  const fa = model.freeAgents.filter((p) => !mineOnly && p.trend?.kind === "rising-role").sort((a, b) => b.trend!.recentPpg - a.trend!.recentPpg).slice(0, 4);
   const others = model.teams
     .filter((x) => x.team.rosterId !== t.team.rosterId)
     .flatMap((x) => x.players)
-    .filter((p) => p.trend?.kind === "rising-role")
+    .filter((p) => !mineOnly && p.trend?.kind === "rising-role")
     .sort((a, b) => b.trend!.recentPpg - a.trend!.recentPpg)
     .slice(0, 4);
   if (!mine.length && !fa.length && !others.length) return null;
@@ -23,11 +23,11 @@ export function TrendsCard({ model, t }: { model: LeagueModel; t: TeamAnalysis }
     <Card>
       <CardHeader
         title="Trends to watch"
-        subtitle="Last 3 games vs. earlier · role changes need usage to move too"
+        subtitle={mineOnly ? "Your players trending up or down over the last 3 games" : "Last 3 games vs. earlier · role changes need usage to move too"}
         info="Rising/shrinking role: production changed by 3+ PPG (and 25%+) and so did usage (snap share ±10 pts or targets+carries ±25%). Hot/cold streak: production moved without a usage change, so it is less likely to last. Needs 5+ games."
       />
       <div className="space-y-3 px-4 pb-4 sm:px-5">
-        {mine.length > 0 && <Group title="Your team" players={mine} />}
+        {mine.length > 0 && <Group title={mineOnly ? "" : "Your team"} players={mine} />}
         {fa.length > 0 && <Group title="Rising roles on waivers" players={fa} sub={() => "Free agent"} />}
         {others.length > 0 && <Group title="Rising roles around the league" players={others} sub={(p) => teamName(p.rosterId)} />}
       </div>
@@ -40,7 +40,7 @@ const order = (p: PlayerView) => ["rising-role", "shrinking-role", "hot-streak",
 function Group({ title, players, sub }: { title: string; players: PlayerView[]; sub?: (p: PlayerView) => string }) {
   return (
     <div>
-      <div className="label-caps mb-1">{title}</div>
+      {title && <div className="label-caps mb-1">{title}</div>}
       <ul className="divide-y divide-line/60">
         {players.map((p) => {
           const up = p.trend!.kind === "rising-role" || p.trend!.kind === "hot-streak";
