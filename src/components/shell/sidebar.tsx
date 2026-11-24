@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { ArrowLeftRight, BarChart3, History, LayoutDashboard, ListOrdered, Mail, Menu, Settings, Shield, Sparkles, Trophy, Users, X } from "lucide-react";
+import { ArrowLeftRight, BarChart3, Calculator, History, LayoutDashboard, ListOrdered, Mail, Menu, Settings, Shield, Sparkles, Trophy, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -12,6 +12,7 @@ export const NAV = [
   { href: "/team", label: "My Team", icon: Shield, group: "Overview" },
   { href: "/league", label: "League", icon: Trophy, group: "Overview" },
   { href: "/trades", label: "Trade Hub", icon: ArrowLeftRight, group: "Market" },
+  { href: "/calculator", label: "Trade Calculator", icon: Calculator, group: "Market" },
   { href: "/waivers", label: "Waiver Wire", icon: Sparkles, group: "Market" },
   { href: "/players", label: "Players", icon: Users, group: "Market" },
   { href: "/picks", label: "Draft Picks", icon: ListOrdered, group: "Market" },

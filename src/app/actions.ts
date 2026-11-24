@@ -13,6 +13,7 @@ import { generateThreeTeamTrades, threeTeamOptionsSchema, type ThreeTeamEvaluati
 import { annotateThreeTeamOdds, annotateTradeOdds } from "@/lib/server/odds";
 import { suggestCounters, type CounterOffer } from "@/lib/trades/counter";
 import { runDigest } from "@/lib/digest/run";
+import { balancer, gradeFor, sideComposite, verdict, type Balancer, type Verdict } from "@/lib/trades/calculator";
 
 const log = logger("actions");
 
@@ -230,6 +231,46 @@ export async function searchPlayers(query: string): Promise<Result<PlayerHit[]>>
         value: p.value,
       }));
     return { ok: true, data: hits };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+const calcSchema = z.object({
+  aRosterId: z.number().int(),
+  bRosterId: z.number().int(),
+  aGives: z.array(z.string()).max(8),
+  bGives: z.array(z.string()).max(8),
+});
+
+export type CalcResult = { evaluation: TradeEvaluation; grades: { a: string; b: string }; composite: { a: number; b: number }; verdict: Verdict; balancer: Balancer | null };
+
+/** Trade calculator: grade any two-team trade in the league from both sides. Works for guests too. */
+export async function calculateTrade(input: unknown): Promise<Result<CalcResult>> {
+  try {
+    const i = calcSchema.parse(input);
+    if (i.aRosterId === i.bRosterId) throw new Error("Pick two different teams.");
+    const { model } = await loadLeagueModel();
+    const idx = assetIndex(model);
+    const resolve = (ids: string[], owner: number) =>
+      ids.map((id) => {
+        const a = idx.get(id);
+        if (!a || a.rosterId !== owner) throw new Error("One of those players or picks has changed teams. Refresh and try again.");
+        return a;
+      });
+    const a = model.teams.find((t) => t.team.rosterId === i.aRosterId);
+    if (!a || !model.teams.some((t) => t.team.rosterId === i.bRosterId)) throw new Error("Unknown team.");
+    const ev = evaluateTrade(model, {
+      myRosterId: i.aRosterId,
+      partnerRosterId: i.bRosterId,
+      myGives: resolve(i.aGives, i.aRosterId),
+      theirGives: resolve(i.bGives, i.bRosterId),
+      objective: a.strategy.effective,
+    });
+    const evaluation = ev.mine.gives.length && ev.mine.gets.length ? annotateTradeOdds(model, [ev], a.strategy.effective)[0] : ev;
+    const ca = sideComposite(evaluation.mine);
+    const cb = sideComposite(evaluation.partner);
+    return { ok: true, data: { evaluation, grades: { a: gradeFor(ca), b: gradeFor(cb) }, composite: { a: ca, b: cb }, verdict: verdict(evaluation), balancer: balancer(model, evaluation) } };
   } catch (err) {
     return fail(err);
   }
