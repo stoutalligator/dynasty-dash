@@ -140,7 +140,7 @@ async function Waivers() {
       <Card className="mt-5">
         <CardHeader
           title="Sleepers on the wire"
-          subtitle="Ranked by pickup score; usage and production are real NFL stats scored with your league settings"
+          subtitle="Free agents ranked for your roster, scored with your league settings"
           action={
             <InfoTip
               text={`Pickup score (0–100) = production ${w.production * 100}% (recent PPG vs. your league's replacement level) + opportunity ${w.opportunity * 100}% (snap share and targets/carries) + projection ${w.projection * 100}% + snap-share trend ${w.trend * 100}% + upside ${w.upside * 100}% (dynasty value or youth) + market ${w.market * 100}% (Sleeper adds). Tiers: Strong add ≥ 60 and producing at replacement level; Worth a look ≥ 45; Stash = young or valued upside.`}

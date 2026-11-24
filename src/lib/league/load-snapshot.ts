@@ -139,7 +139,9 @@ export async function loadLeagueSnapshot(opts: LoadOptions = {}): Promise<League
     return r.value.data.map(normalizeTransaction);
   });
   transactions.sort((a, b) => b.createdAt - a.createdAt);
-  if (txResults[0]?.status === "fulfilled") fresh.transactions = freshness(txResults[0].value);
+  // The current week's transactions are the ones that change; older weeks are cached for a day.
+  const latestTx = txResults.at(-1);
+  if (latestTx?.status === "fulfilled") fresh.transactions = freshness(latestTx.value);
 
   const weeks: WeekResult[] = [];
   for (const r of mResults) {

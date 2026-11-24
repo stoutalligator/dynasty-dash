@@ -1,3 +1,4 @@
+import { upcomingWeek } from "@/lib/league/week";
 import { optimalLineup } from "@/lib/analysis/lineup";
 import type { LeagueModel, PlayerView } from "@/lib/analysis/types";
 import type { WeekResult } from "@/lib/league/models";
@@ -114,7 +115,8 @@ export function buildSeasonSim(opts: {
   const { model } = opts;
   const lg = model.league;
   if (!lg.playoffTeams || !lg.playoffWeekStart || opts.projections.size === 0) return null;
-  const currentWeek = lg.currentWeek ?? (lg.lastScoredWeek ?? 0) + 1;
+  // The next week to be played (Sleeper's current week, or the one after once it has been scored).
+  const currentWeek = upcomingWeek(lg);
   const weeksPerRound = lg.playoffRoundType === 1 ? 2 : 1;
   const rounds = Math.ceil(Math.log2(Math.max(2, lg.playoffTeams)));
   const playoffWeeks = Array.from({ length: rounds * weeksPerRound }, (_, i) => lg.playoffWeekStart! + i);

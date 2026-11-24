@@ -22,7 +22,7 @@ async function DigestContent() {
   const [digest, history] = await Promise.all([readLatestDigest(owner), readDigestHistory(owner)]);
   return (
     <>
-      <PageTitle title="Weekly digest" subtitle="A recap of waiver fits, injuries, trade ideas and league changes, compared with your previous digest. Rebuild it anytime.">
+      <PageTitle title="Weekly digest" subtitle="What changed since your last visit: waivers, injuries, trades and league moves">
         <DigestActions />
       </PageTitle>
       {!digest ? (

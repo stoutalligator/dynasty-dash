@@ -80,7 +80,7 @@ export function ProposalSummary({ e, compact }: { e: TradeEvaluation; compact?: 
         {!compact && <span>Their value {deltaInt(e.partner.netValue)}</span>}
       </div>
       {e.odds && <OddsLine label="Your odds" d={e.odds.mine} />}
-      {!compact && e.mine.reasonsFor.length > 0 && <p className="mt-1.5 text-[12px] text-ink-2">{e.mine.reasonsFor.join(" ")}</p>}
+      {!compact && e.mine.reasonsFor.length > 0 && <p className="mt-1.5 truncate text-[12px] text-ink-2" title={e.mine.reasonsFor.join(" ")}>{e.mine.reasonsFor[0]}</p>}
     </div>
   );
 }

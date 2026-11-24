@@ -3,8 +3,9 @@ import { PageSkeleton } from "@/components/page-skeleton";
 import { PageSuspense } from "@/components/page-suspense";
 import { Recommendations } from "@/components/team/recommendations";
 import { TeamView } from "@/components/team/team-view";
-import { Card, CardHeader, Notice } from "@/components/ui";
+import { Card, CardHeader } from "@/components/ui";
 import { getLeague, myTeam } from "@/lib/server/data";
+import { GuestBanner, TeamDirectory } from "@/components/league/guest-overview";
 import { myRecommendations } from "@/lib/server/insights";
 
 export const metadata: Metadata = { title: "My Team" };
@@ -14,10 +15,10 @@ async function MyTeam() {
   const t = myTeam(model);
   if (!t) {
     return (
-      <Notice level="error">
-        Your team could not be verified against the live league. {model.verification.notes.join(" ")} Set <code>MY_ROSTER_ID</code> or{" "}
-        <code>EXPECTED_TEAM_NAME</code> in <code>.env</code>.
-      </Notice>
+      <>
+        <GuestBanner model={model}>You&apos;re not on a team in this league, so there&apos;s no &ldquo;My Team&rdquo; here. Pick any team to see its full profile.</GuestBanner>
+        <TeamDirectory model={model} />
+      </>
     );
   }
   const recs = myRecommendations(model, prefs);
@@ -30,7 +31,7 @@ async function MyTeam() {
           <Card className="mt-5">
             <CardHeader
               title="Recommended actions"
-              subtitle="Three strategic scenarios; ● marks the one the model recommends. Switch the strategy above to override it."
+              subtitle="Three paths for your team; ● marks the one we recommend"
             />
             <Recommendations recs={recs} recommended={t.strategy.effective} />
           </Card>

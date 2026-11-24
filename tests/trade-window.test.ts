@@ -11,7 +11,7 @@ describe("tradeWindow", () => {
   });
   it("flags the deadline week", () => {
     expect(tradeWindow(lg(11, 11)).state).toBe("deadline-week");
-    expect(tradeWindowNote(tradeWindow(lg(11, 11)))).toMatch(/this week/);
+    expect(tradeWindowNote(tradeWindow(lg(11, 11)))).toMatch(/Last chance to trade.*week 12 begins/);
   });
   it("is closed after the deadline during the season", () => {
     expect(tradeWindow(lg(12, 11)).state).toBe("closed");

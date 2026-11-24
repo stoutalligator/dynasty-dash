@@ -21,7 +21,7 @@ export function ThreeTeamExplorer({ objective, teamNames }: { objective: Strateg
     <Card>
       <CardHeader
         title="Three-team trades (exploratory)"
-        subtitle="Cycles where you send to team B, B sends to team C, and C sends to you, for when the team with what you want doesn't want what you have."
+        subtitle="When the team with your target doesn't want what you have, route it through a third team."
         action={
           <button
             type="button"

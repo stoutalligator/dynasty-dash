@@ -10,6 +10,7 @@ import { gradedPositions, lineupImpacts, optimalLineup, type LineupCandidate } f
 import { analyzeHistory } from "@/lib/history/analyze";
 import { headToHead } from "@/lib/history/h2h";
 import { faabMarket } from "./faab";
+import { upcomingWeek } from "@/lib/league/week";
 import { detectTrend, TREND_LABEL } from "./trends";
 import type { LeagueHistory } from "@/lib/history/load";
 import type { StatsBundle } from "@/lib/stats/load";
@@ -73,7 +74,7 @@ export function buildLeagueModel({ snapshot: s, external, providerStatus, prefs,
   const production =
     statsSource === "stats" ? computeProductionFromStats(stats!.stats, s.weeks, (id) => s.players[id]?.position ?? null) : computeProduction(s.weeks);
   // Projections may include completed weeks (used for calibration); player fields use upcoming weeks only.
-  const fromWeek = s.league.currentWeek ?? (s.league.lastScoredWeek ?? 0) + 1;
+  const fromWeek = upcomingWeek(s.league);
   const projectionWeeks = stats ? [...stats.projections.keys()].filter((w) => w >= fromWeek).sort((a, b) => a - b) : [];
   const projWeek = projectionWeeks[0] ?? null;
   const projFor = (id: string) => (projWeek != null ? (stats!.projections.get(projWeek)?.get(id)?.pts ?? null) : null);

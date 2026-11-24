@@ -38,7 +38,7 @@ export async function SyncStatus() {
   const { model } = await getLeague();
   const l = model.league;
   const oldest = Object.entries(model.freshness)
-    .filter(([k]) => ["league", "rosters", "users", "tradedPicks", "matchups", "transactions"].includes(k))
+    .filter(([k]) => ["rosters", "matchups", "transactions"].includes(k))
     .map(([, f]) => f.fetchedAt)
     .sort()[0];
   const problems = model.issues.filter((i) => i.level !== "info");
@@ -52,7 +52,7 @@ export async function SyncStatus() {
       </div>
       <div className="flex items-center gap-3">
         {problems.length > 0 ? (
-          <Link href="/settings#issues" className="inline-flex items-center gap-1 text-warning hover:underline">
+          <Link href="/settings" className="inline-flex items-center gap-1 text-warning hover:underline">
             <AlertTriangle className="size-3.5" aria-hidden /> {problems.length} data warning{problems.length > 1 ? "s" : ""}
           </Link>
         ) : (

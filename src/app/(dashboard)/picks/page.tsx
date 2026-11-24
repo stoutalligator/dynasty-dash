@@ -32,7 +32,7 @@ async function Picks() {
       <Card>
         <CardHeader
           title="Pick ownership by team"
-          subtitle="● own pick · chips are picks acquired from that team (hover for details) · — traded away. Sorted by standings."
+          subtitle="● own pick · chips are picks acquired from others · — traded away"
           action={<SourceTag kind="sleeper" label="Ownership: Sleeper" />}
         />
         {/* Phones: one block per team listing its picks by season. */}

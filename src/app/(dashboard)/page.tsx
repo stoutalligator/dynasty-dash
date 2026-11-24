@@ -1,20 +1,20 @@
-import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ActivityFeed } from "@/components/activity-feed";
 import { PlayerAvatar } from "@/components/avatar";
-import { StandingsTable, StrategyDistribution } from "@/components/league/standings-table";
+import { StandingsTable } from "@/components/league/standings-table";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { PageSuspense } from "@/components/page-suspense";
 import { Recommendations } from "@/components/team/recommendations";
-import { PicksCard, PositionGradesCard, StrategyCard, TeamHeader, TeamStatTiles } from "@/components/team/team-panels";
+import { TeamHeader, TeamStatTiles } from "@/components/team/team-panels";
 import { ProposalSummary } from "@/components/trades/proposal-summary";
 import { ValueMoversCard } from "@/components/team/value-movers";
 import { ThisWeekCard } from "@/components/week/this-week-card";
+import { GuestOverview } from "@/components/league/guest-overview";
 import { SeasonTrendCard } from "@/components/team/season-trend";
 import { TrendsCard } from "@/components/team/trends-card";
 import { rankMovement, readSnapshots } from "@/lib/snapshots/store";
-import { Card, CardHeader, InjuryBadge, Notice, PosBadge, Skeleton } from "@/components/ui";
+import { Card, CardHeader, Notice, PosBadge, Skeleton, STRATEGY_TEXT } from "@/components/ui";
 import { setImmediate as yieldToStream } from "node:timers/promises";
 import { getLeague, myTeam } from "@/lib/server/data";
 import { defaultTrades, myRecommendations } from "@/lib/server/insights";
@@ -27,14 +27,7 @@ async function Dashboard() {
   const { model } = await getLeague();
   const snaps = await readSnapshots(model.league.id);
   const t = myTeam(model);
-  if (!t) {
-    return (
-      <Notice level="error">
-        Your team could not be verified. {model.verification.notes.join(" ")} <Link href="/settings" className="underline">Check settings</Link>.
-      </Notice>
-    );
-  }
-  const injured = t.players.filter((p) => p.injury && p.slot !== "taxi").sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+  if (!t) return <GuestOverview model={model} />;
   const errors = model.issues.filter((i) => i.level === "error");
   const waiverTop = buildWaiverBoard(model, t, model.league.waiverBudget)
     .candidates.filter((c) => c.tier === "Strong add" || c.tier === "Worth a look" || c.lineupGain > 0.05)
@@ -64,36 +57,9 @@ async function Dashboard() {
         </div>
 
         <div className="space-y-5">
-          <StrategyCard t={t} />
-          <PositionGradesCard t={t} model={model} />
           <TrendsCard model={model} t={t} />
-          <ValueMoversCard t={t} model={model} />
-          <SeasonTrendCard snaps={snaps} rosterId={t.team.rosterId} />
           <Card>
-            <CardHeader title="League outlook" subtitle="Inferred from observable data; overrides respected" />
-            <StrategyDistribution model={model} />
-          </Card>
-          <Card>
-            <CardHeader title="Injuries & status" subtitle="Your roster · Sleeper player data" />
-            {injured.length ? (
-              <ul className="divide-y divide-line/60 px-4 pb-2">
-                {injured.map((p) => (
-                  <li key={p.id} className="flex items-center gap-2.5 py-2 text-sm">
-                    <PlayerAvatar id={p.id} name={p.name} size={24} />
-                    <span className="flex-1 truncate text-ink">{p.name}</span>
-                    <PosBadge pos={p.position} />
-                    <InjuryBadge injury={p.injury} />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="flex items-center gap-2 px-4 pb-4 text-sm text-ink-3">
-                <AlertTriangle className="size-4" aria-hidden /> No injury designations on your active roster.
-              </p>
-            )}
-          </Card>
-          <Card>
-            <CardHeader title="Waiver wire" subtitle="Top free agents by pickup score" action={<Link href="/waivers" className="text-xs text-accent hover:underline">All →</Link>} />
+            <CardHeader title="Waiver wire" subtitle="Best available pickups for your roster" action={<Link href="/waivers" className="text-xs text-accent hover:underline">All →</Link>} />
             {waiverTop.length ? (
               <ul className="divide-y divide-line/60 px-4 pb-2">
                 {waiverTop.map((c) => (
@@ -110,9 +76,10 @@ async function Dashboard() {
               <p className="px-4 pb-4 text-sm text-ink-3">No standout free agents right now.</p>
             )}
           </Card>
-          <PicksCard t={t} model={model} />
+          <ValueMoversCard t={t} model={model} />
+          <SeasonTrendCard snaps={snaps} rosterId={t.team.rosterId} />
           <Card>
-            <CardHeader title="Recent league activity" action={<Link href="/league#activity" className="text-xs text-accent hover:underline">All →</Link>} />
+            <CardHeader title="Recent activity" action={<Link href="/league#activity" className="text-xs text-accent hover:underline">All →</Link>} />
             <ActivityFeed model={model} limit={6} />
           </Card>
         </div>
@@ -139,7 +106,7 @@ async function DashboardTradeCards() {
     <>
           {recs && (
             <Card>
-              <CardHeader title="Recommended next actions" subtitle="Grounded in your roster, the league, and the trade engine" action={<Link href="/team" className="text-xs text-accent hover:underline">Full analysis →</Link>} />
+              <CardHeader title="Recommended next actions" subtitle="The moves that help your team most right now" action={<Link href="/team" className="text-xs text-accent hover:underline">Full analysis →</Link>} />
               <Recommendations recs={recs} recommended={t.strategy.effective} limit={4} />
             </Card>
           )}
@@ -147,7 +114,7 @@ async function DashboardTradeCards() {
           <Card>
             <CardHeader
               title="Best trade opportunities"
-              subtitle={`Objective: ${t.strategy.effective} · ranked by benefit to you, with the partner's incentives weighed in`}
+              subtitle={`Ranked for a ${STRATEGY_TEXT[t.strategy.effective].toLowerCase()} · deals the other side should accept`}
               action={<Link href="/trades" className="text-xs text-accent hover:underline">Trade Hub →</Link>}
             />
             {tradeNote && (
@@ -164,7 +131,7 @@ async function DashboardTradeCards() {
                 ))}
               </div>
             ) : (
-              <p className="px-4 pb-4 text-sm text-ink-3">No proposals met the realism filters. Try other objectives in the Trade Hub.</p>
+              <p className="px-4 pb-4 text-sm text-ink-3">No realistic deals right now. Try a different goal in the Trade Hub.</p>
             )}
           </Card>
     </>
@@ -175,7 +142,7 @@ function TradeCardsSkeleton() {
   return (
     <>
       <Card>
-        <CardHeader title="Recommended next actions" subtitle="Running the trade engine…" />
+        <CardHeader title="Recommended next actions" subtitle="Finding your best moves…" />
         <div className="space-y-2 px-4 pb-4">
           {[0, 1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
         </div>

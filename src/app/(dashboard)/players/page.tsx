@@ -13,7 +13,7 @@ async function Players({ searchParams }: { searchParams: Promise<{ q?: string }>
   const teams = model.teams.map((t) => ({ rosterId: t.team.rosterId, name: t.team.teamName }));
   return (
     <>
-      <PageTitle title="Players" subtitle="Every rostered player plus every free agent with production, a projection, a dynasty value or Sleeper add activity" />
+      <PageTitle title="Players" subtitle="Every rostered player and relevant free agent" />
       <Card>
         <CardHeader
           title={`${players.length} players`}

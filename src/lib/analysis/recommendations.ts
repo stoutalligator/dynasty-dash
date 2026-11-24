@@ -104,7 +104,7 @@ export function recommendationsFor(
     ...qbNote,
     ...needLines.filter((l) => !(qbNote.length && l.title.endsWith("QB"))),
     ...(worstSlot && worstSlot.gap < 0
-      ? [{ title: `Weakest lineup slot: ${worstSlot.slot}`, detail: `Scores ${worstSlot.score.toFixed(1)} form PPG vs. a league median of ${worstSlot.leagueMed.toFixed(1)} for that slot.`, kind: "upgrade" as const }]
+      ? [{ title: `Weakest lineup slot: ${prettySlot(worstSlot.slot)}`, detail: `Scores ${worstSlot.score.toFixed(1)} form PPG vs. a league median of ${worstSlot.leagueMed.toFixed(1)} for that slot.`, kind: "upgrade" as const }]
       : []),
     ...buyLowLine,
     ...(expendable.length ? [{ title: "Use bench value as currency", detail: `Not in your best lineup but carry trade value: ${names(expendable.slice(0, 4))}.`, kind: "sell" as const }] : []),
@@ -152,4 +152,10 @@ export function leagueOpportunities(model: LeagueModel) {
     .filter((t) => t.strategy.effective === "contender" && t.needs.length)
     .map((t) => ({ rosterId: t.team.rosterId, teamName: t.team.teamName, needs: t.needs.map((x) => x.position) }));
   return { qbWeak: qbWeak.map((t) => ({ rosterId: t.team.rosterId, teamName: t.team.teamName, rank: t.positions.QB.starterRank })), surplusByPos, contendersNeeding };
+}
+
+const SLOT_NAMES: Record<string, string> = { SUPER_FLEX: "Superflex", FLEX: "Flex", REC_FLEX: "WR/TE flex", WRRB_FLEX: "RB/WR flex", IDP_FLEX: "IDP flex" };
+/** Sleeper slot codes in plain words ("SUPER_FLEX" → "Superflex"). */
+export function prettySlot(slot: string): string {
+  return SLOT_NAMES[slot] ?? slot.replace(/_/g, " ");
 }

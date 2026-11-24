@@ -1,3 +1,4 @@
+import { upcomingWeek } from "@/lib/league/week";
 import { SLOT_ELIGIBILITY } from "@/lib/analysis/lineup";
 import type { LeagueModel, PlayerView, TeamAnalysis } from "@/lib/analysis/types";
 import { isUnavailable } from "@/lib/players/normalize";
@@ -119,7 +120,7 @@ function sleeperLineup(model: LeagueModel, team: TeamAnalysis, cal: number): { s
  * season simulation's score spread, narrowed to the share of starters still to play.
  */
 export function matchup(model: LeagueModel, team: TeamAnalysis): Matchup | null {
-  const week = model.league.currentWeek;
+  const week = upcomingWeek(model.league);
   if (week == null || model.league.status !== "in_season") return null;
   const pair = model.schedule.find((s) => s.week === week)?.pairs.find((p) => p.includes(team.team.rosterId));
   if (!pair) return null;

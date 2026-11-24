@@ -176,7 +176,7 @@ export function RosterTable({
                     {showTeam && p.rosterId != null && teamNames && ` · ${teamNames[p.rosterId]}`}
                   </span>
                   <InjuryBadge injury={p.injury} compact />
-                  <TagList tags={p.tags.filter((t) => t !== "Starter")} max={1} />
+                  <TagList tags={p.tags.filter((t) => t !== "Starter" && t !== "Unavailable" && t !== "Free agent")} max={1} />
                 </div>
               </div>
               <div className="tnum shrink-0 text-right">
@@ -229,14 +229,14 @@ export function RosterTable({
                     <div className="flex items-center gap-2.5">
                       <PlayerAvatar id={p.id} name={p.name} />
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          {nameButton(p, "font-medium")}
-                          <TagList tags={p.tags.filter((t) => t !== "Starter")} />
-                        </div>
-                        <div className="text-[11px] text-ink-3">
-                          {p.nflTeam ?? "FA"}
-                          {p.yearsExp != null && ` · ${p.yearsExp === 0 ? "Rookie" : `${p.yearsExp} yr exp`}`}
-                          {showTeam && p.rosterId != null && teamNames && ` · ${teamNames[p.rosterId]}`}
+                        {nameButton(p, "block max-w-full font-medium")}
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-ink-3">
+                          <span>
+                            {p.nflTeam ?? "FA"}
+                            {p.yearsExp != null && ` · ${p.yearsExp === 0 ? "Rookie" : `${p.yearsExp} yr exp`}`}
+                            {showTeam && p.rosterId != null && teamNames && ` · ${teamNames[p.rosterId]}`}
+                          </span>
+                          <TagList tags={p.tags.filter((t) => t !== "Starter" && t !== "Unavailable" && t !== "Free agent")} />
                         </div>
                       </div>
                     </div>

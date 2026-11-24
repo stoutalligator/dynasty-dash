@@ -20,6 +20,7 @@ export type SavedView = { id: string; savedAt: string; partnerRosterId: number; 
 type Flags = { untouchables: string[]; tradeBlock: string[]; targets: string[] };
 
 const POSITIONS = ["QB", "RB", "WR", "TE", "PICK"];
+const PAGE_SIZE = 8;
 
 export function TradeHub({
   me,
@@ -49,6 +50,8 @@ export function TradeHub({
   const [maxAge, setMaxAge] = useState("");
   const [offerPicks, setOfferPicks] = useState(true);
   const [proposals, setProposals] = useState(initialProposals);
+  // The strongest ideas first; the rest on request.
+  const [shown, setShown] = useState(PAGE_SIZE);
   const [error, setError] = useState<string | null>(null);
   const [flags, setFlags] = useState(initialFlags);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -86,6 +89,7 @@ export function TradeHub({
       });
       if (r.ok) {
         setProposals(r.data);
+        setShown(PAGE_SIZE);
         setDirty(false);
       } else setError(r.error);
     });
@@ -154,8 +158,8 @@ export function TradeHub({
       <Card>
         <AnchorPicker me={me} partners={partners} value={anchor} info={anchorInfo} onChange={chooseAnchor} disabled={pending} />
         <div className="flex flex-wrap items-end gap-x-4 gap-y-3 p-4">
-          <Field label="Objective" tip="Changes how your side is scored: contend weights lineup gains, rebuild favors picks and young players, retool balances both.">
-            <Segmented value={objective} onChange={(v) => { setObjective(v as Strategy); setDirty(true); }} options={["contender", "retool", "rebuild"]} labels={{ contender: "Contend", retool: "Retool", rebuild: "Rebuild" }} label="Objective" />
+          <Field label="Your goal" tip="Changes how your side is scored: contend weights lineup gains, rebuild favors picks and young players, retool balances both.">
+            <Segmented value={objective} onChange={(v) => { setObjective(v as Strategy); setDirty(true); }} options={["contender", "retool", "rebuild"]} labels={{ contender: "Contend", retool: "Retool", rebuild: "Rebuild" }} label="Your goal" />
           </Field>
           <Field label="Partner">
             <select
@@ -212,7 +216,7 @@ export function TradeHub({
             <h2 className="text-[15px] font-semibold text-ink">
               {proposals.length} proposals
               <span className="font-normal text-ink-3">
-                {anchorInfo && ` · ${anchorInfo.side === "mine" ? "shopping" : "acquiring"} ${anchorInfo.asset.label}`} · {objective} objective{dirty && " · filters changed, press Find trades"}
+                {anchorInfo && ` · ${anchorInfo.side === "mine" ? "shopping" : "acquiring"} ${anchorInfo.asset.label}`} · {objective}{dirty && " · filters changed, press Find trades"}
               </span>
             </h2>
           </div>
@@ -223,11 +227,11 @@ export function TradeHub({
                   ? anchorInfo.side === "mine"
                     ? `No realistic deals include ${anchorInfo.asset.label}. Try allowing picks or a different objective.`
                     : `No realistic package lands ${anchorInfo.asset.label} from ${anchorInfo.owner.name}. Try offering picks or a different objective.`
-                  : "No trades met the realism filters. Loosen the position/age filters or remove untouchables."}
+                  : "No realistic deals with these filters. Loosen the position or age filters, or free up an untouchable."}
               </p>
             </Card>
           )}
-          {proposals.map((e) => {
+          {proposals.slice(0, shown).map((e) => {
             const open = expanded === e.id;
             const inCompare = compare.some((c) => c.id === e.id);
             return (
@@ -253,12 +257,21 @@ export function TradeHub({
               </Card>
             );
           })}
+          {proposals.length > shown && (
+            <button
+              type="button"
+              onClick={() => setShown((n) => n + PAGE_SIZE)}
+              className="w-full rounded-xl border border-line-strong bg-surface-2/60 px-4 py-2.5 text-sm font-medium text-ink-2 hover:border-accent/40 hover:text-ink"
+            >
+              Show {Math.min(PAGE_SIZE, proposals.length - shown)} more ideas
+            </button>
+          )}
         </div>
 
         {/* Side column */}
         <div className="space-y-5">
           <Card>
-            <CardHeader title="Trade block & untouchables" subtitle="Your assets. The engine never offers untouchables and favors trade-block assets." />
+            <CardHeader title="Trade block & untouchables" subtitle="Your assets. Untouchables are never offered; trade-block players are offered first." />
             <ul className="max-h-[380px] divide-y divide-line/60 overflow-y-auto px-4 pb-2">
               {me.assets.filter((a) => a.value > 0).sort((a, b) => b.value - a.value).map((a) => {
                 const f = flagOf(a.assetId);
@@ -319,7 +332,7 @@ export function TradeHub({
 
       {bResult && (
         <Card>
-          <CardHeader title="Builder evaluation" subtitle={`${me.name} ↔ ${bResult.partner.teamName} · ${objective} objective`} action={<button type="button" onClick={() => toggleCompare(bResult)} className="text-xs text-accent hover:underline">Add to compare</button>} />
+          <CardHeader title="Builder evaluation" subtitle={`${me.name} ↔ ${bResult.partner.teamName} · ${objective}`} action={<button type="button" onClick={() => toggleCompare(bResult)} className="text-xs text-accent hover:underline">Add to compare</button>} />
           {counters.length > 0 && (
             <div className="mx-4 mb-4 rounded-xl border border-accent/25 bg-accent/5 p-3 sm:mx-5">
               <div className="label-caps mb-2 text-accent">Make it work</div>

@@ -235,3 +235,13 @@ describe("live week in the simulation", () => {
     expect(odds.find((o) => o.rosterId === 1)!.playoffPct).toBe(1);
   });
 });
+
+describe("upcoming week", () => {
+  it("moves on once Sleeper has scored the current week", async () => {
+    const { upcomingWeek } = await import("@/lib/league/week");
+    expect(upcomingWeek({ currentWeek: 11, lastScoredWeek: 10, status: "in_season" })).toBe(11); // games in progress
+    expect(upcomingWeek({ currentWeek: 11, lastScoredWeek: 11, status: "in_season" })).toBe(12); // scored, counter not yet moved
+    expect(upcomingWeek({ currentWeek: 1, lastScoredWeek: 0, status: "pre_draft" })).toBe(1);
+    expect(upcomingWeek({ currentWeek: null, lastScoredWeek: 4, status: "in_season" })).toBe(5);
+  });
+});

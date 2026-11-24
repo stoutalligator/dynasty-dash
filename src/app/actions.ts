@@ -86,7 +86,7 @@ export async function toggleAssetFlag(list: string, assetId: string): Promise<Re
 export async function findTrades(options: unknown): Promise<Result<TradeEvaluation[]>> {
   try {
     const { model, prefs } = await loadLeagueModel();
-    if (model.myRosterId == null) throw new Error("Your team could not be verified; check MY_ROSTER_ID.");
+    if (model.myRosterId == null) throw new Error("Trade tools need your team. Sign in with your Sleeper username.");
     const o = generateOptionsSchema.parse({ ...(options as object), untouchables: prefs.untouchables, tradeBlock: prefs.tradeBlock, targets: prefs.targets });
     return { ok: true, data: annotateTradeOdds(model, generateTrades(model, model.myRosterId, o), o.objective) };
   } catch (err) {
@@ -105,7 +105,7 @@ export async function evaluateCustomTrade(input: unknown): Promise<Result<TradeE
   try {
     const i = evalSchema.parse(input);
     const { model } = await loadLeagueModel();
-    if (model.myRosterId == null) throw new Error("Your team could not be verified.");
+    if (model.myRosterId == null) throw new Error("Trade tools need your team. Sign in with your Sleeper username.");
     const idx = assetIndex(model);
     const resolve = (ids: string[], owner: number) =>
       ids.map((id) => {
@@ -131,7 +131,7 @@ export async function counterOffers(input: unknown): Promise<Result<CounterOffer
   try {
     const i = evalSchema.parse(input);
     const { model, prefs } = await loadLeagueModel();
-    if (model.myRosterId == null) throw new Error("Your team could not be verified.");
+    if (model.myRosterId == null) throw new Error("Trade tools need your team. Sign in with your Sleeper username.");
     const idx = assetIndex(model);
     const resolve = (ids: string[], owner: number) =>
       ids.map((id) => {
@@ -179,7 +179,7 @@ export async function deleteProposal(id: string): Promise<Result<null>> {
 export async function findThreeTeamTrades(options: unknown): Promise<Result<ThreeTeamEvaluation[]>> {
   try {
     const { model, prefs } = await loadLeagueModel();
-    if (model.myRosterId == null) throw new Error("Your team could not be verified; check MY_ROSTER_ID.");
+    if (model.myRosterId == null) throw new Error("Trade tools need your team. Sign in with your Sleeper username.");
     const o = threeTeamOptionsSchema.parse({ ...(options as object), untouchables: prefs.untouchables });
     return { ok: true, data: annotateThreeTeamOdds(model, generateThreeTeamTrades(model, model.myRosterId, o)) };
   } catch (err) {

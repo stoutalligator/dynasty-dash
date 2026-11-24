@@ -22,7 +22,7 @@ export function tradeWindow(league: Pick<LeagueInfo, "status" | "currentWeek" | 
 /** One-line description for banners and the digest, or null when there is nothing worth saying. */
 export function tradeWindowNote(w: TradeWindow): string | null {
   if (w.state === "closed") return `The trade deadline (week ${w.deadline}) has passed. Trades reopen after the season; ideas here are for the offseason.`;
-  if (w.state === "deadline-week") return `Trade deadline is this week (week ${w.deadline}). Deals must be accepted before Sleeper locks trades.`;
+  if (w.state === "deadline-week") return `Last chance to trade: the deadline is week ${w.deadline}, and Sleeper locks trades when week ${w.deadline + 1} begins.`;
   if (w.weeksLeft != null && w.weeksLeft <= 3) return `Trade deadline in ${w.weeksLeft} week${w.weeksLeft > 1 ? "s" : ""} (week ${w.deadline}).`;
   return null;
 }

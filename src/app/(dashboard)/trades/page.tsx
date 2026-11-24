@@ -7,6 +7,7 @@ import type { TeamAnalysis } from "@/lib/analysis/types";
 import { assetIndex, teamAssets } from "@/lib/trades/assets";
 import { evaluateTrade } from "@/lib/trades/evaluate";
 import { tradeWindow, tradeWindowNote } from "@/lib/league/trade-window";
+import { GuestBanner, TeamDirectory } from "@/components/league/guest-overview";
 import { generateTrades, locateAnchor } from "@/lib/trades/generate";
 import { getLeague, myTeam } from "@/lib/server/data";
 import { defaultTrades } from "@/lib/server/insights";
@@ -25,7 +26,14 @@ const hubTeam = (t: TeamAnalysis): HubTeam => ({
 async function Hub({ searchParams }: { searchParams: Promise<{ partner?: string; asset?: string }> }) {
   const [{ partner, asset }, { model, prefs }] = await Promise.all([searchParams, getLeague()]);
   const me = myTeam(model);
-  if (!me) return <Notice level="error">Your team could not be verified, so trades cannot be generated. Check Settings.</Notice>;
+  if (!me) {
+    return (
+      <>
+        <GuestBanner model={model}>Trade ideas are built around your own roster. Sign in with your Sleeper username to see trades for your team.</GuestBanner>
+        <TeamDirectory model={model} />
+      </>
+    );
+  }
 
   const objective = me.strategy.effective;
   const tw = tradeWindow(model.league);
@@ -62,7 +70,7 @@ async function Hub({ searchParams }: { searchParams: Promise<{ partner?: string;
     <>
       <PageTitle
         title="Trade Hub"
-        subtitle="Two-team trade ideas grounded in every roster, each team's needs and window, and both sides' lineup impact"
+        subtitle="Fair trades that help you and make sense for the other team"
       />
       {windowNote && (
         <div className="mb-4">
